@@ -557,7 +557,7 @@ function sanitizeCopyForWhatsApp(copyText, cleanUrl, styleKey = 'vantagens_gatil
   text = text.replace(/https?:\/\/[^\s<>"]+/gi, '');
 
   // 3. Remove chamadas prévias de link e rodapés de promoção prévios (garante idempotência estrita)
-  text = text.replace(/(?:👉\s*)?(?:\*?(?:Compre|Garanta|Acesse|Confira)(?:\s+no)?\s+link\s+oficial:?\*?\s*)+/gi, '');
+  text = text.replace(/(?:👉\s*)?(?:\*?(?:Compre|Garanta|Acesse|Confira)(?:\s+(?:no|com))?\s+(?:link\s+oficial|desconto(?:\s+aqui)?):?\*?\s*)+/gi, '');
   text = text.replace(/(?:👉\s*)?(?:\*?(?:Link\s+de\s+compra|Link\s+oficial|Acesse\s+o\s+link|Garanta\s+no\s+link):?\*?\s*)+/gi, '');
   text = text.replace(/_?\s*⏰?\s*(?:Preço promocional|Oferta válida|Corra, os preços|Promoção válida)[^_\n]*_?/gi, '');
 
@@ -2789,15 +2789,45 @@ async function handleSendOffer({ productData, affiliateLink, affiliateTag, group
     }
   }
 
+  // 2.1 Se for Shopee (cujos links s.shopee são bloqueados com 403 para crawlers do Meta)
+  // OU se o produto tiver vídeo na 1ª posição:
+  // Gera um preview link oficial que garante a entrega da foto do produto para o WhatsApp Web
+  let dispatchLink = finalLink;
+  const prodImg = productData?.imageUrl || productData?.image || productData?.videoPoster || '';
+  const hasVideo = !!(productData?.hasVideo || productData?.videoUrl);
+
+  if (prodImg && prodImg.startsWith('http') && (isShopee || hasVideo)) {
+    try {
+      const pRes = await fetch('https://pbatxljxcnkogcqfhomc.supabase.co/functions/v1/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: finalLink,
+          img: prodImg,
+          title: productData?.title || 'Oferta Imperdível',
+          price: productData?.price || ''
+        })
+      });
+      const pJson = await pRes.json();
+      if (pJson && pJson.previewUrl) {
+        dispatchLink = pJson.previewUrl.replace('http://', 'https://');
+      } else {
+        dispatchLink = `https://pbatxljxcnkogcqfhomc.supabase.co/functions/v1/preview?url=${encodeURIComponent(finalLink)}&img=${encodeURIComponent(prodImg)}&title=${encodeURIComponent(productData?.title || 'Oferta')}&price=${encodeURIComponent(productData?.price || '')}`;
+      }
+    } catch (_) {
+      dispatchLink = `https://pbatxljxcnkogcqfhomc.supabase.co/functions/v1/preview?url=${encodeURIComponent(finalLink)}&img=${encodeURIComponent(prodImg)}&title=${encodeURIComponent(productData?.title || 'Oferta')}&price=${encodeURIComponent(productData?.price || '')}`;
+    }
+  }
+
   // 3. Garante que temos a copy gerada por IA de acordo com o modelo selecionado
   let finalCopy = messageText;
   if (!finalCopy || !finalCopy.trim()) {
     console.log(`[Afiliado ML] Gerando copy com IA Groq (modelo: ${copyStyle || 'padrão'})...`);
-    const aiResult = await handleGenerateAiCopy(productData, finalLink, copyStyle);
+    const aiResult = await handleGenerateAiCopy(productData, dispatchLink, copyStyle);
     finalCopy = aiResult.copy;
   } else {
     // Se o usuário passou texto customizado, sanitiza isolando o link para preview perfeito de imagem
-    finalCopy = sanitizeCopyForWhatsApp(finalCopy, finalLink, copyStyle);
+    finalCopy = sanitizeCopyForWhatsApp(finalCopy, dispatchLink, copyStyle);
   }
 
   // 5. Localiza ou abre a aba do WhatsApp Web
@@ -2838,7 +2868,8 @@ async function handleSendOffer({ productData, affiliateLink, affiliateTag, group
   const payload = {
     action: 'dispatch_to_group',
     productData,
-    affiliateLink: finalLink,
+    affiliateLink: dispatchLink,
+    originalAffiliateLink: finalLink,
     groupName,
     messageText: finalCopy
   };

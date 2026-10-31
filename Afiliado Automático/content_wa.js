@@ -402,7 +402,7 @@ async function dispatchWithLinkPreview(fullCopy, fallbackUrl, productData = null
 
   // Remove chamadas de link prévias no final do corpo para não duplicar o título do CTA
   textWithoutUrl = textWithoutUrl
-    .replace(/(?:👉\s*)?(?:\*?(?:Compre|Garanta|Acesse|Confira)(?:\s+no)?\s+link\s+oficial:?\*?\s*)+/gi, '')
+    .replace(/(?:👉\s*)?(?:\*?(?:Compre|Garanta|Acesse|Confira)(?:\s+(?:no|com))?\s+(?:link\s+oficial|desconto(?:\s+aqui)?):?\*?\s*)+/gi, '')
     .replace(/(?:👉\s*)?(?:\*?(?:Link\s+de\s+compra|Link\s+oficial|Acesse\s+o\s+link|Garanta\s+no\s+link):?\*?\s*)+/gi, '')
     .trimEnd();
 
@@ -416,16 +416,16 @@ async function dispatchWithLinkPreview(fullCopy, fallbackUrl, productData = null
   const isShopee = targetUrl.includes('shopee') || productData?.platform === 'shopee';
   const hasVideo = !!(productData?.hasVideo || productData?.videoUrl);
 
-  // Se o produto tiver vídeo OU se for Shopee (cujos shortlinks s.shopee.com.br redirecionam para /opaanlp/ e bloqueiam og:image no WhatsApp):
-  // Usamos a nossa rota oficial https://afiliado-automatico.vercel.app/api/p
+  // Se o produto tiver vídeo OU se for Shopee (cujos shortlinks s.shopee.com.br bloqueiam og:image no WhatsApp):
+  // Usamos a nossa Edge Function https://pbatxljxcnkogcqfhomc.supabase.co/functions/v1/preview
   // que entrega os metadados OpenGraph com a foto oficial em alta resolução e redireciona 100% dos cliques para o link de afiliado oficial.
   let previewTriggerUrl = targetUrl;
-  if (prodImgUrl && prodImgUrl.startsWith('http') && (hasVideo || isShopee)) {
+  if (!targetUrl.includes('supabase.co') && prodImgUrl && prodImgUrl.startsWith('http') && (hasVideo || isShopee)) {
     const pTitle = encodeURIComponent(productData?.title || 'Oferta Imperdível');
     const pPrice = encodeURIComponent(productData?.price || '');
     const pImg = encodeURIComponent(prodImgUrl);
     const pTarget = encodeURIComponent(targetUrl);
-    previewTriggerUrl = `https://afiliado-automatico.vercel.app/api/p?url=${pTarget}&img=${pImg}&title=${pTitle}&price=${pPrice}`;
+    previewTriggerUrl = `https://pbatxljxcnkogcqfhomc.supabase.co/functions/v1/preview?url=${pTarget}&img=${pImg}&title=${pTitle}&price=${pPrice}`;
   }
 
   if (targetUrl) {
@@ -445,42 +445,21 @@ async function dispatchWithLinkPreview(fullCopy, fallbackUrl, productData = null
     messageBox.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space', keyCode: 32, which: 32, bubbles: true }));
     await sleep(400);
 
-    // 6. AGUARDA A FOTO REAL CARREGAR NA PRÉVIA DO LINK (Até 8 segundos)
-    const previewLoaded = await waitForLinkPreview(8);
+    // 6. AGUARDA A FOTO REAL CARREGAR NA PRÉVIA DO LINK (Até 9 segundos)
+    const previewLoaded = await waitForLinkPreview(9);
 
     if (previewLoaded) {
       showOnScreenNotification('✍️ Inserindo texto da oferta...', '#2D3277');
-      // Se usamos a rota especial para puxar a foto, substitui o texto pelo link de afiliado original
-      // mantendo o card da foto fixado na mensagem!
-      if (previewTriggerUrl !== targetUrl) {
-        await selectAllAndInsert(messageBox, `${textWithoutUrl}\n\n👉 *Compre no link oficial:*\n${targetUrl}`);
-      } else if (cleanBody) {
+      // Mantém a URL que gerou o card da foto para garantir que o WhatsApp nunca cancele a foto da prévia!
+      // Se um usuário clicar no card ou no link, é redirecionado instantaneamente (302) para o link oficial de afiliado
+      const finalLinkInMessage = previewTriggerUrl;
+      await selectAllAndInsert(messageBox, `${textWithoutUrl}\n\n👉 *Compre no link oficial:*\n${finalLinkInMessage}`);
+    } else {
+      if (cleanBody) {
         moveCaretToStart(messageBox);
         await sleep(150);
         await insertMultiLineTextAtCaret(messageBox, cleanBody);
         await sleep(500);
-      }
-    } else {
-      // Fallback: Se por lentidão a foto do preview ainda não carregou, tenta a URL canônica do produto
-      if (isShopee && (productData?.url || productData?.pageUrl)) {
-        const rawPUrl = productData.pageUrl || productData.url;
-        const shpMatch = rawPUrl.match(/-i\.(\d+)\.(\d+)/) || rawPUrl.match(/\/product\/(\d+)\/(\d+)/);
-        if (shpMatch) {
-          const canonicalShp = `https://shopee.com.br/product/${shpMatch[1]}/${shpMatch[2]}`;
-          clearMessageBox(messageBox);
-          await sleep(150);
-          document.execCommand('insertText', false, canonicalShp + ' ');
-          messageBox.dispatchEvent(new InputEvent('input', { bubbles: true }));
-          await waitForLinkPreview(5);
-          await selectAllAndInsert(messageBox, `${textWithoutUrl}\n\n👉 *Compre no link oficial:*\n${targetUrl}`);
-        }
-      } else {
-        if (cleanBody) {
-          moveCaretToStart(messageBox);
-          await sleep(150);
-          await insertMultiLineTextAtCaret(messageBox, cleanBody);
-          await sleep(500);
-        }
       }
     }
   } else {
