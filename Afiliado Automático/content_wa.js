@@ -411,14 +411,31 @@ async function dispatchWithLinkPreview(fullCopy, fallbackUrl, productData = null
     ? `${textWithoutUrl}\n\n👉 *Compre no link oficial:*\n`
     : textWithoutUrl;
 
+  // 4. Determina a URL ideal para acionar o preview nativo com FOTO no WhatsApp Web
+  const prodImgUrl = productData?.imageUrl || productData?.image || productData?.videoPoster || '';
+  const isShopee = targetUrl.includes('shopee') || productData?.platform === 'shopee';
+  const hasVideo = !!(productData?.hasVideo || productData?.videoUrl);
+
+  // Se o produto tiver vídeo OU se for Shopee (cujos shortlinks s.shopee.com.br redirecionam para /opaanlp/ e bloqueiam og:image no WhatsApp):
+  // Usamos a nossa rota oficial https://afiliado-automatico.vercel.app/api/p
+  // que entrega os metadados OpenGraph com a foto oficial em alta resolução e redireciona 100% dos cliques para o link de afiliado oficial.
+  let previewTriggerUrl = targetUrl;
+  if (prodImgUrl && prodImgUrl.startsWith('http') && (hasVideo || isShopee)) {
+    const pTitle = encodeURIComponent(productData?.title || 'Oferta Imperdível');
+    const pPrice = encodeURIComponent(productData?.price || '');
+    const pImg = encodeURIComponent(prodImgUrl);
+    const pTarget = encodeURIComponent(targetUrl);
+    previewTriggerUrl = `https://afiliado-automatico.vercel.app/api/p?url=${pTarget}&img=${pImg}&title=${pTitle}&price=${pPrice}`;
+  }
+
   if (targetUrl) {
-    // 4. DIGITA A URL PRIMEIRO NO CAMPO VAZIO
-    // No WhatsApp Web, digitar a URL no campo vazio aciona imediatamente o gerador de Link Preview
-    showOnScreenNotification('🔗 Carregando prévia e foto do link...', '#2D3277');
+    // 5. DIGITA A URL DE PREVIEW NO CAMPO VAZIO
+    // No WhatsApp Web, digitar a URL no campo vazio aciona imediatamente o gerador de Link Preview com a foto
+    showOnScreenNotification('🔗 Carregando prévia e foto do produto...', '#2D3277');
     messageBox.focus();
 
-    // Insere a URL única usando execCommand
-    document.execCommand('insertText', false, targetUrl);
+    // Insere a URL de preview usando execCommand
+    document.execCommand('insertText', false, previewTriggerUrl);
     await sleep(200);
 
     // Digita espaço delimitador que aciona o crawler do WhatsApp Web
@@ -428,47 +445,42 @@ async function dispatchWithLinkPreview(fullCopy, fallbackUrl, productData = null
     messageBox.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space', keyCode: 32, which: 32, bubbles: true }));
     await sleep(400);
 
-    // 5. AGUARDA A FOTO CARREGAR NA PRÉVIA DO LINK (Até 8 segundos)
+    // 6. AGUARDA A FOTO REAL CARREGAR NA PRÉVIA DO LINK (Até 8 segundos)
     const previewLoaded = await waitForLinkPreview(8);
 
     if (previewLoaded) {
-      // CENÁRIO A: Prévia nativa com foto carregada com sucesso!
-      if (cleanBody) {
-        showOnScreenNotification('✍️ Inserindo texto da oferta...', '#2D3277');
+      showOnScreenNotification('✍️ Inserindo texto da oferta...', '#2D3277');
+      // Se usamos a rota especial para puxar a foto, substitui o texto pelo link de afiliado original
+      // mantendo o card da foto fixado na mensagem!
+      if (previewTriggerUrl !== targetUrl) {
+        await selectAllAndInsert(messageBox, `${textWithoutUrl}\n\n👉 *Compre no link oficial:*\n${targetUrl}`);
+      } else if (cleanBody) {
         moveCaretToStart(messageBox);
         await sleep(150);
         await insertMultiLineTextAtCaret(messageBox, cleanBody);
         await sleep(500);
       }
     } else {
-      // CENÁRIO B: Prévia de link sem foto (comum em produtos cujo 1º item é vídeo ou crawler do WA)
-      // FALLBACK AUTOMÁTICO INFALÍVEL: Injeta a foto oficial do produto diretamente com a copy como legenda!
-      let directPhotoSent = false;
-      const prodImgUrl = productData?.imageUrl || productData?.videoPoster;
-
-      if (prodImgUrl && prodImgUrl.startsWith('http')) {
-        showOnScreenNotification('🖼️ Prévia sem foto (produto com vídeo). Injetando foto oficial...', '#3B82F6');
-        try {
-          directPhotoSent = await dispatchDirectPhotoWithCaption(prodImgUrl, fullCopy);
-        } catch (mediaErr) {
-          console.warn('[Afiliado WA] Falha no envio de foto direta, tentando envio de texto:', mediaErr);
+      // Fallback: Se por lentidão a foto do preview ainda não carregou, tenta a URL canônica do produto
+      if (isShopee && (productData?.url || productData?.pageUrl)) {
+        const rawPUrl = productData.pageUrl || productData.url;
+        const shpMatch = rawPUrl.match(/-i\.(\d+)\.(\d+)/) || rawPUrl.match(/\/product\/(\d+)\/(\d+)/);
+        if (shpMatch) {
+          const canonicalShp = `https://shopee.com.br/product/${shpMatch[1]}/${shpMatch[2]}`;
+          clearMessageBox(messageBox);
+          await sleep(150);
+          document.execCommand('insertText', false, canonicalShp + ' ');
+          messageBox.dispatchEvent(new InputEvent('input', { bubbles: true }));
+          await waitForLinkPreview(5);
+          await selectAllAndInsert(messageBox, `${textWithoutUrl}\n\n👉 *Compre no link oficial:*\n${targetUrl}`);
         }
-      }
-
-      if (directPhotoSent) {
-        showOnScreenNotification('✅ Oferta enviada com foto oficial e legenda!', '#25D366');
-        await sleep(1500);
-        return { success: true, mode: 'direct_photo' };
-      }
-
-      // CENÁRIO C: Se o envio direto de foto não foi possível, envia o texto completo com o link oficial
-      // em vez de bloquear o usuário com erro fatal!
-      showOnScreenNotification('⚡ Enviando texto e link oficial...', '#2D3277');
-      if (cleanBody) {
-        moveCaretToStart(messageBox);
-        await sleep(150);
-        await insertMultiLineTextAtCaret(messageBox, cleanBody);
-        await sleep(500);
+      } else {
+        if (cleanBody) {
+          moveCaretToStart(messageBox);
+          await sleep(150);
+          await insertMultiLineTextAtCaret(messageBox, cleanBody);
+          await sleep(500);
+        }
       }
     }
   } else {
@@ -707,6 +719,40 @@ async function insertMultiLineTextAtCaret(messageBox, text) {
   messageBox.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true }));
 }
 
+async function selectAllAndInsert(el, text) {
+  if (!el) return;
+  el.focus();
+  try {
+    const sel = window.getSelection();
+    if (sel) {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  } catch (e) {}
+
+  let pasteOk = false;
+  try {
+    const dt = new DataTransfer();
+    dt.setData('text/plain', text);
+    const pasteEvt = new ClipboardEvent('paste', {
+      clipboardData: dt,
+      bubbles: true,
+      cancelable: true,
+      composed: true
+    });
+    el.dispatchEvent(pasteEvt);
+    pasteOk = true;
+  } catch (e) {}
+
+  if (!pasteOk) {
+    document.execCommand('insertText', false, text);
+  }
+  el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true }));
+  await sleep(300);
+}
+
 /**
  * Detecta se o card de prévia com imagem real já foi carregado no DOM do WhatsApp Web
  * Busca em containers de preview ativos (excluindo o histórico de mensagens já enviadas)
@@ -767,15 +813,15 @@ function isLinkPreviewImageLoaded() {
     for (const img of imgs) {
       const src = img.src || img.getAttribute('src') || '';
       if (!src) continue;
-      // Rejeita ícones pequenos de placeholder ou perfis
-      if (src.includes('avatar') || src.includes('profile')) continue;
+      // Rejeita ícones pequenos de placeholder, perfis ou favicons svg
+      if (src.includes('avatar') || src.includes('profile') || src.includes('favicon') || src.includes('data:image/svg')) continue;
 
       const w = img.naturalWidth || img.clientWidth || img.offsetWidth || 0;
       const h = img.naturalHeight || img.clientHeight || img.offsetHeight || 0;
-      if (w > 20 && h > 20) {
+      if (w >= 45 && h >= 45) {
         return true;
       }
-      if (img.complete && (src.startsWith('blob:') || src.startsWith('data:image') || src.includes('mlstatic') || src.length > 50)) {
+      if (img.complete && (src.startsWith('blob:') || src.includes('mlstatic') || src.includes('susercontent') || src.includes('media-amazon'))) {
         return true;
       }
     }
@@ -785,7 +831,7 @@ function isLinkPreviewImageLoaded() {
     for (const cv of canvases) {
       const w = cv.width || cv.clientWidth || cv.offsetWidth || 0;
       const h = cv.height || cv.clientHeight || cv.offsetHeight || 0;
-      if (w > 20 && h > 20) {
+      if (w >= 45 && h >= 45) {
         return true;
       }
     }
@@ -794,8 +840,12 @@ function isLinkPreviewImageLoaded() {
     const bgEls = c.querySelectorAll('div[style*="background-image"], span[style*="background-image"]');
     for (const bg of bgEls) {
       const bgStyle = bg.style.backgroundImage || '';
-      if (bgStyle.includes('url(') && (bgStyle.includes('blob:') || bgStyle.includes('data:image') || bgStyle.includes('mlstatic') || bgStyle.length > 40)) {
-        return true;
+      if (bgStyle.includes('url(') && !bgStyle.includes('svg') && !bgStyle.includes('favicon')) {
+        const w = bg.clientWidth || bg.offsetWidth || 0;
+        const h = bg.clientHeight || bg.offsetHeight || 0;
+        if (w >= 45 || h >= 45 || bgStyle.includes('susercontent') || bgStyle.includes('mlstatic') || bgStyle.includes('media-amazon')) {
+          return true;
+        }
       }
     }
   }
