@@ -190,24 +190,33 @@
 
         <div class="config-divider"></div>
 
-        <!-- Sincronização Automática com WhatsApp Web -->
+        <!-- Sincronização & Cadastro de Grupos do WhatsApp -->
         <div class="config-group">
-          <label class="config-label">
-            <span class="label-icon">🔄</span>
-            <span>Sincronização de Grupos do WhatsApp</span>
-          </label>
-          <button id="btnSyncGroups" class="btn-sync-action">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon">
-              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-            </svg>
-            <span id="btnSyncText">Puxar Grupos do WhatsApp Web</span>
-          </button>
-          <small id="syncStatusHint" class="hint-text">Conecta ao WhatsApp Web e importa todos os seus grupos automaticamente.</small>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <label class="config-label" style="margin-bottom: 0;">
+              <span class="label-icon">💬</span>
+              <span>Grupos do WhatsApp</span>
+            </label>
+            <span id="planGroupsLimitBadge" class="plan-limit-badge">0 / 1 cadastrado(s)</span>
+          </div>
 
-          <!-- Listagem visual dos grupos sincronizados -->
+          <div class="sync-actions-row">
+            <button id="btnSyncGroups" class="btn-sync-action" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon">
+                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+              </svg>
+              <span id="btnSyncText">Puxar do WhatsApp</span>
+            </button>
+            <button id="btnOpenGroupRegisterModal" class="btn-register-action" type="button" title="Cadastrar grupos dentre todos os detectados no WhatsApp">
+              <span>+ Cadastrar Grupos</span>
+            </button>
+          </div>
+          <small id="syncStatusHint" class="hint-text">Puxe todos os grupos do WhatsApp Web e selecione quais cadastrar respeitando a cota do seu plano.</small>
+
+          <!-- Listagem dos grupos ATUALMENTE CADASTRADOS -->
           <div class="groups-list-container" style="margin-top: 10px;">
             <div class="groups-list-header">
-              <span>Grupos Sincronizados (<span id="groupsCount">0</span>)</span>
+              <span>Grupos Ativos para Disparo (<span id="groupsCount">0</span>)</span>
             </div>
             <ul id="groupsList" class="groups-list">
               <!-- Renderizado dinamicamente via JS -->
@@ -219,31 +228,30 @@
 
     <!-- SEÇÃO 2: BUSCA, SELEÇÃO E IA -->
     <section class="search-section">
-      <!-- Seletor de Destino (Dropdown de Grupos) com botão de Sync rápido -->
+      <!-- Seletor de Destino Multi-Grupos Cadastrados -->
       <div class="target-group-wrapper">
         <div class="target-header-row">
-          <label for="targetGroup" class="target-group-label">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="wa-icon-small">
-              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-            </svg>
-            <span>Grupo de Destino do WhatsApp:</span>
-          </label>
-          <div style="display: flex; align-items: center; gap: 6px;">
-            <button id="btnPinTargetGroup" class="btn-pin-group" title="Fixar este grupo como padrão para não ter que selecionar toda hora">
-              <span>📌</span> <span id="btnPinTargetGroupText">Fixar Padrão</span>
-            </button>
-            <button id="quickSyncBtn" class="btn-quick-sync" title="Atualizar lista de grupos do WhatsApp">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+          <div class="target-label-col">
+            <label class="target-group-label">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="wa-icon-small">
+                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
               </svg>
+              <span>Grupos de Destino:</span>
+            </label>
+            <span id="targetSelectedCountBadge" class="target-badge-pill">0 selecionado(s)</span>
+          </div>
+          <div class="target-actions-col">
+            <button id="btnSelectAllTargetGroups" type="button" class="btn-mini-link" title="Marcar todos os grupos cadastrados">Todos</button>
+            <button id="btnClearTargetGroups" type="button" class="btn-mini-link" title="Desmarcar seleção">Limpar</button>
+            <button id="btnManageGroupsHeader" type="button" class="btn-manage-groups-pill" title="Gerenciar ou cadastrar novos grupos">
+              <span>⚙️ Cadastrar</span>
             </button>
           </div>
         </div>
-        <div class="select-wrapper">
-          <select id="targetGroup">
-            <option value="">Carregando grupos...</option>
-          </select>
-          <span class="select-chevron">▾</span>
+
+        <!-- Seletor em múltiplos chips / checkboxes: APENAS os grupos cadastrados! -->
+        <div id="targetGroupsContainer" class="target-groups-multi-container">
+          <!-- Renderizado dinamicamente via JS -->
         </div>
       </div>
 
@@ -659,6 +667,57 @@
         <div class="upgrade-footer">
           <button id="btnCheckSubscriptionStatus" class="btn-refresh-subscription" type="button">🔄 Já assinei / Atualizar Acesso</button>
           <button id="btnCloseUpgradeModal" class="btn-close-modal" type="button">Fechar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL DE CADASTRO E SELEÇÃO DE GRUPOS DO WHATSAPP -->
+    <div id="groupRegisterModal" class="modal-overlay hidden">
+      <div class="group-register-card">
+        <div class="group-register-header">
+          <div class="group-modal-title-row">
+            <div class="group-modal-icon">💬</div>
+            <div>
+              <h3>Cadastrar Grupos do WhatsApp</h3>
+              <p>Escolha quais grupos do WhatsApp você deseja usar para disparos.</p>
+            </div>
+          </div>
+          <button id="btnCloseGroupRegisterModal" type="button" class="btn-close-modal-icon" title="Fechar">&times;</button>
+        </div>
+
+        <div class="group-plan-quota-banner">
+          <div class="quota-info-col">
+            <span class="quota-plan-name" id="modalPlanName">Plano: Starter</span>
+            <span class="quota-desc" id="modalQuotaText">Limite de grupos do seu plano</span>
+          </div>
+          <span id="modalQuotaCounterBadge" class="quota-counter-badge">0 / 1 selecionados</span>
+        </div>
+
+        <!-- Campo de busca de grupos -->
+        <div class="group-search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-icon-mini">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="text" id="groupSearchInput" placeholder="Buscar grupo por nome..." autocomplete="off">
+        </div>
+
+        <!-- Adição manual caso WhatsApp Web não esteja aberto -->
+        <div class="manual-group-add-row">
+          <input type="text" id="manualGroupNameInput" placeholder="Ou digite o nome exato do grupo..." autocomplete="off">
+          <button type="button" id="btnAddManualGroupBtn" class="btn-add-manual-group">+ Adicionar</button>
+        </div>
+
+        <!-- Lista com todos os grupos detectados do WhatsApp -->
+        <div class="all-detected-groups-scroll" id="allDetectedGroupsList">
+          <!-- Renderizado dinamicamente via JS -->
+        </div>
+
+        <div class="group-register-footer">
+          <button type="button" id="btnCancelGroupRegister" class="btn-secondary">Cancelar</button>
+          <button type="button" id="btnSaveRegisteredGroups" class="btn-primary-action">
+            <span>💾 Salvar Grupos Cadastrados</span>
+          </button>
         </div>
       </div>
     </div>

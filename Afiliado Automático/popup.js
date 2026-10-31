@@ -66,7 +66,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const groupsList = document.getElementById('groupsList');
   const groupsCount = document.getElementById('groupsCount');
 
-  // Destino WhatsApp & IA Copywriting
+  // Destino WhatsApp Multi-Grupos & Modal de Cadastro
+  const targetGroupsContainer = document.getElementById('targetGroupsContainer');
+  const targetSelectedCountBadge = document.getElementById('targetSelectedCountBadge');
+  const btnSelectAllTargetGroups = document.getElementById('btnSelectAllTargetGroups');
+  const btnClearTargetGroups = document.getElementById('btnClearTargetGroups');
+  const btnManageGroupsHeader = document.getElementById('btnManageGroupsHeader');
+  const planGroupsLimitBadge = document.getElementById('planGroupsLimitBadge');
+  const btnOpenGroupRegisterModal = document.getElementById('btnOpenGroupRegisterModal');
+
+  const groupRegisterModal = document.getElementById('groupRegisterModal');
+  const btnCloseGroupRegisterModal = document.getElementById('btnCloseGroupRegisterModal');
+  const btnCancelGroupRegister = document.getElementById('btnCancelGroupRegister');
+  const btnSaveRegisteredGroups = document.getElementById('btnSaveRegisteredGroups');
+  const modalPlanName = document.getElementById('modalPlanName');
+  const modalQuotaText = document.getElementById('modalQuotaText');
+  const modalQuotaCounterBadge = document.getElementById('modalQuotaCounterBadge');
+  const groupSearchInput = document.getElementById('groupSearchInput');
+  const manualGroupNameInput = document.getElementById('manualGroupNameInput');
+  const btnAddManualGroupBtn = document.getElementById('btnAddManualGroupBtn');
+  const allDetectedGroupsList = document.getElementById('allDetectedGroupsList');
+
+  // Fallbacks legados
   const targetGroupSelect = document.getElementById('targetGroup');
   const quickSyncBtn = document.getElementById('quickSyncBtn');
   const btnPinTargetGroup = document.getElementById('btnPinTargetGroup');
@@ -155,7 +176,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // =========================================================================
   // ESTADO LOCAL
   // =========================================================================
-  let groups = [];
+  let groups = []; // Grupos cadastrados ativos (ml_whatsapp_groups)
+  let allDetectedGroups = []; // Todos os grupos detectados no WhatsApp Web
+  let selectedDispatchGroups = new Set(); // Grupos selecionados para envio atual
+  let modalTempSelectedGroups = new Set(); // Seleção temporária no modal de cadastro
   let pinnedGroup = '';
   let affiliateTag = '';
   let amazonAffiliateTag = '';
@@ -375,6 +399,8 @@ document.addEventListener('DOMContentLoaded', () => {
         'amazon_affiliate_tag',
         'shopee_affiliate_tag',
         'ml_whatsapp_groups',
+        'all_detected_whatsapp_groups',
+        'ml_selected_dispatch_groups',
         'ml_pinned_group',
         'groq_api_key',
         'use_ai_copy',
@@ -415,10 +441,22 @@ document.addEventListener('DOMContentLoaded', () => {
         useAiCopyCheckbox.checked = !!data.use_ai_copy;
       }
 
+      allDetectedGroups = Array.isArray(data.all_detected_whatsapp_groups) ? data.all_detected_whatsapp_groups : [];
       pinnedGroup = (data.ml_pinned_group || '').trim();
       groups = Array.isArray(data.ml_whatsapp_groups) ? data.ml_whatsapp_groups : [];
+
+      if (Array.isArray(data.ml_selected_dispatch_groups) && data.ml_selected_dispatch_groups.length > 0) {
+        selectedDispatchGroups = new Set(data.ml_selected_dispatch_groups);
+      } else if (pinnedGroup && groups.includes(pinnedGroup)) {
+        selectedDispatchGroups = new Set([pinnedGroup]);
+      } else if (groups.length > 0) {
+        selectedDispatchGroups = new Set([groups[0]]);
+      } else {
+        selectedDispatchGroups = new Set();
+      }
+
       renderGroupsUI();
-      populateTargetGroupDropdown(pinnedGroup);
+      renderTargetGroupsSelector();
 
       // Favoritos
       await loadFavorites();
@@ -563,38 +601,66 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Fixar Grupo de WhatsApp como Padrão
-    if (btnPinTargetGroup) {
-      btnPinTargetGroup.addEventListener('click', async () => {
-        const current = targetGroupSelect.value;
-        if (!current) {
-          showToast('Selecione um grupo primeiro para fixar.', '⚠️');
-          return;
-        }
+    // Ações de Seleção de Grupos de Destino
+    if (btnSelectAllTargetGroups) {
+      btnSelectAllTargetGroups.addEventListener('click', () => {
+        const status = (typeof supabase !== 'undefined' && supabase.getPlanStatus)
+          ? supabase.getPlanStatus()
+          : { isSuperAdmin: false, maxAllowedGroups: 1 };
+        const maxAllowed = status.isSuperAdmin ? 9999 : (status.maxAllowedGroups || 1);
+        const activeGroups = status.isSuperAdmin ? groups : groups.slice(0, maxAllowed);
 
-        if (pinnedGroup === current) {
-          pinnedGroup = '';
-          await chrome.storage.local.set({ ml_pinned_group: '' });
-          showToast('Grupo desfixado de padrão.', 'ℹ️');
-        } else {
-          pinnedGroup = current;
-          await chrome.storage.local.set({ ml_pinned_group: current });
-          showToast(`📌 Grupo "${current}" fixado como padrão!`, '✅');
-        }
-
-        populateTargetGroupDropdown(current);
-        renderGroupsUI();
+        activeGroups.forEach(g => selectedDispatchGroups.add(g));
+        chrome.storage.local.set({ ml_selected_dispatch_groups: Array.from(selectedDispatchGroups) });
+        renderTargetGroupsSelector();
+        showToast(`${selectedDispatchGroups.size} grupo(s) selecionado(s) para disparo.`, '💬');
       });
     }
 
-    if (targetGroupSelect) {
-      targetGroupSelect.addEventListener('change', () => {
-        updatePinButtonUI();
+    if (btnClearTargetGroups) {
+      btnClearTargetGroups.addEventListener('click', () => {
+        selectedDispatchGroups.clear();
+        chrome.storage.local.set({ ml_selected_dispatch_groups: [] });
+        renderTargetGroupsSelector();
+        showToast('Seleção de grupos limpa.', 'ℹ️');
+      });
+    }
+
+    // Modal de Cadastro de Grupos
+    if (btnManageGroupsHeader) {
+      btnManageGroupsHeader.addEventListener('click', openGroupRegisterModal);
+    }
+    if (btnOpenGroupRegisterModal) {
+      btnOpenGroupRegisterModal.addEventListener('click', openGroupRegisterModal);
+    }
+    if (btnCloseGroupRegisterModal) {
+      btnCloseGroupRegisterModal.addEventListener('click', closeGroupRegisterModal);
+    }
+    if (btnCancelGroupRegister) {
+      btnCancelGroupRegister.addEventListener('click', closeGroupRegisterModal);
+    }
+    if (btnSaveRegisteredGroups) {
+      btnSaveRegisteredGroups.addEventListener('click', handleSaveRegisteredGroups);
+    }
+    if (groupSearchInput) {
+      groupSearchInput.addEventListener('input', renderAllDetectedGroupsList);
+    }
+    if (btnAddManualGroupBtn) {
+      btnAddManualGroupBtn.addEventListener('click', handleAddManualGroup);
+    }
+    if (manualGroupNameInput) {
+      manualGroupNameInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handleAddManualGroup();
+        }
       });
     }
 
     // Sincronização de Grupos com WhatsApp Web
-    btnSyncGroups.addEventListener('click', handleSyncGroups);
+    if (btnSyncGroups) {
+      btnSyncGroups.addEventListener('click', handleSyncGroups);
+    }
     if (quickSyncBtn) {
       quickSyncBtn.addEventListener('click', handleSyncGroups);
     }
@@ -1178,26 +1244,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    const targetGroup = targetGroupSelect.value.trim();
-    if (!targetGroup) {
-      targetGroupSelect.classList.add('highlight-error');
-      setTimeout(() => targetGroupSelect.classList.remove('highlight-error'), 800);
-      targetGroupSelect.focus();
-      showToast('Selecione ou sincronize um grupo no menu acima!', '⚠️');
-      return;
-    }
-
-    if (typeof supabase !== 'undefined') {
-      const status = supabase.getPlanStatus();
-      if (!status.isSuperAdmin) {
-        const maxGroups = status.maxAllowedGroups || 1;
-        const groupIdx = groups.indexOf(targetGroup);
-        if (groupIdx >= maxGroups) {
-          showToast(`O seu plano permite disparar para até ${maxGroups} grupo(s). Faça upgrade para o Pro ou Ultra!`, '⚠️');
-          showUpgradeModal('Limite de Grupos do Plano', `O grupo "${targetGroup}" ultrapassa a cota de ${maxGroups} grupo(s) do seu plano atual (${status.planName}). Faça upgrade para o Plano Pro (5 grupos) ou Ultra (10 grupos) para disparar para este grupo!`);
-          return;
-        }
+    const selectedGroups = Array.from(selectedDispatchGroups);
+    if (selectedGroups.length === 0) {
+      if (targetGroupsContainer) {
+        targetGroupsContainer.classList.add('highlight-error');
+        setTimeout(() => targetGroupsContainer.classList.remove('highlight-error'), 800);
       }
+      showToast('Selecione pelo menos um grupo cadastrado para o disparo em massa!', '⚠️');
+      return;
     }
 
     const selectedProducts = allProducts.filter(p => selectedProductUrls.has(p.url));
@@ -1238,7 +1292,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const response = await chrome.runtime.sendMessage({
         action: 'start_mass_dispatch',
         products: selectedProducts,
-        groupName: targetGroup,
+        targetGroups: selectedGroups,
+        groupName: selectedGroups.join(', '),
         minIntervalMinutes: minInterval,
         maxIntervalMinutes: maxInterval,
         randomInterval: isRandom,
@@ -1399,20 +1454,46 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isSyncingGroups) return;
     isSyncingGroups = true;
 
-    btnSyncGroups.disabled = true;
-    btnSyncGroups.classList.add('syncing');
+    if (btnSyncGroups) {
+      btnSyncGroups.disabled = true;
+      btnSyncGroups.classList.add('syncing');
+    }
     if (quickSyncBtn) quickSyncBtn.classList.add('syncing');
-    btnSyncText.textContent = 'Conectando ao WhatsApp Web...';
+    if (btnSyncText) btnSyncText.textContent = 'Conectando ao WhatsApp Web...';
     showToast('Conectando ao WhatsApp Web para puxar os grupos...', '⏳');
 
     try {
       const response = await chrome.runtime.sendMessage({ action: 'sync_whatsapp_groups' });
 
       if (response && response.success && Array.isArray(response.groups) && response.groups.length > 0) {
-        groups = response.groups;
+        allDetectedGroups = response.groups;
+        await chrome.storage.local.set({ all_detected_whatsapp_groups: allDetectedGroups });
+
+        const status = (typeof supabase !== 'undefined' && supabase.getPlanStatus)
+          ? supabase.getPlanStatus()
+          : { isSuperAdmin: false, maxAllowedGroups: 1, planName: 'STARTER' };
+        const maxAllowed = status.isSuperAdmin ? 9999 : (status.maxAllowedGroups || 1);
+
+        // Se ainda não tiver grupos cadastrados, auto-registra os primeiros até o limite
+        if (groups.length === 0) {
+          groups = allDetectedGroups.slice(0, maxAllowed);
+          await chrome.storage.local.set({ ml_whatsapp_groups: groups });
+          if (typeof supabase !== 'undefined' && supabase.session) {
+            try {
+              await supabase.updateProfile({ ml_whatsapp_groups: groups });
+            } catch (_) {}
+          }
+        }
+
         renderGroupsUI();
-        populateTargetGroupDropdown(groups[0]);
-        showToast(`✅ ${groups.length} grupos importados do WhatsApp Web!`, '🚀');
+        renderTargetGroupsSelector();
+
+        showToast(`✅ ${allDetectedGroups.length} grupos encontrados no WhatsApp Web!`, '🚀');
+
+        // Abre o modal de cadastro para o usuário selecionar seus grupos preferidos
+        setTimeout(() => {
+          openGroupRegisterModal();
+        }, 500);
       } else {
         throw new Error(response?.error || 'Nenhum grupo encontrado.');
       }
@@ -1421,10 +1502,12 @@ document.addEventListener('DOMContentLoaded', () => {
       showToast(`Falha na sincronização: ${err.message}`, '⚠️');
     } finally {
       isSyncingGroups = false;
-      btnSyncGroups.disabled = false;
-      btnSyncGroups.classList.remove('syncing');
+      if (btnSyncGroups) {
+        btnSyncGroups.disabled = false;
+        btnSyncGroups.classList.remove('syncing');
+      }
       if (quickSyncBtn) quickSyncBtn.classList.remove('syncing');
-      btnSyncText.textContent = 'Puxar Grupos do WhatsApp Web';
+      if (btnSyncText) btnSyncText.textContent = 'Puxar do WhatsApp';
     }
   }
 
@@ -2749,21 +2832,35 @@ document.addEventListener('DOMContentLoaded', () => {
     if (index >= 0 && index < groups.length) {
       const removedName = groups[index];
       groups.splice(index, 1);
+      selectedDispatchGroups.delete(removedName);
       if (removedName === pinnedGroup) {
-        pinnedGroup = '';
-        await chrome.storage.local.set({ ml_pinned_group: '' });
+        pinnedGroup = groups[0] || '';
+        await chrome.storage.local.set({ ml_pinned_group: pinnedGroup });
       }
-      await persistGroups();
+      await chrome.storage.local.set({
+        ml_whatsapp_groups: groups,
+        ml_selected_dispatch_groups: Array.from(selectedDispatchGroups)
+      });
+      if (typeof supabase !== 'undefined' && supabase.session) {
+        try {
+          await supabase.updateProfile({ ml_whatsapp_groups: groups });
+        } catch (_) {}
+      }
       renderGroupsUI();
-      populateTargetGroupDropdown();
-      showToast(`Grupo "${removedName}" removido.`, '🗑️');
+      renderTargetGroupsSelector();
+      showToast(`Grupo "${removedName}" removido dos cadastrados.`, '🗑️');
     }
   }
 
   async function persistGroups() {
     try {
-      await chrome.storage.local.set({ ml_whatsapp_groups: groups });
-      if (typeof supabase !== 'undefined') supabase.syncLocalToCloud({ ml_whatsapp_groups: groups });
+      await chrome.storage.local.set({
+        ml_whatsapp_groups: groups,
+        ml_selected_dispatch_groups: Array.from(selectedDispatchGroups)
+      });
+      if (typeof supabase !== 'undefined' && supabase.session) {
+        await supabase.updateProfile({ ml_whatsapp_groups: groups });
+      }
     } catch (err) {
       showToast('Erro ao salvar grupos no storage.', '❌');
     }
@@ -2771,7 +2868,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updatePinButtonUI() {
     if (!btnPinTargetGroup) return;
-    const current = targetGroupSelect.value;
+    const current = Array.from(selectedDispatchGroups)[0] || '';
     const isPinned = !!(current && current === pinnedGroup);
     if (isPinned) {
       btnPinTargetGroup.classList.add('active');
@@ -2791,13 +2888,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const maxGroups = status.isSuperAdmin ? 9999 : (status.maxAllowedGroups || 1);
 
     const activeCount = Math.min(groups.length, maxGroups);
-    groupsCount.textContent = maxGroups >= 9999 ? groups.length : `${activeCount} de ${maxGroups} permitido(s)`;
+    if (groupsCount) {
+      groupsCount.textContent = maxGroups >= 9999 ? groups.length : `${activeCount} de ${maxGroups} permitido(s)`;
+    }
+    if (planGroupsLimitBadge) {
+      planGroupsLimitBadge.textContent = maxGroups >= 9999
+        ? `${groups.length} cadastrado(s) (Ilimitado)`
+        : `${activeCount} / ${maxGroups} no plano`;
+    }
+
+    if (!groupsList) return;
     groupsList.innerHTML = '';
 
     if (groups.length === 0) {
       const emptyLi = document.createElement('li');
       emptyLi.className = 'groups-empty-hint';
-      emptyLi.textContent = 'Nenhum grupo cadastrado. Clique no botão verde acima para puxar do WhatsApp Web!';
+      emptyLi.textContent = 'Nenhum grupo cadastrado. Clique em "Puxar do WhatsApp" ou "+ Cadastrar Grupos"!';
       groupsList.appendChild(emptyLi);
       return;
     }
@@ -2865,58 +2971,328 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function populateTargetGroupDropdown(selectValue = null) {
-    const currentSelected = selectValue || targetGroupSelect.value || pinnedGroup;
-    targetGroupSelect.innerHTML = '';
+  function renderTargetGroupsSelector() {
+    if (!targetGroupsContainer) return;
+    targetGroupsContainer.innerHTML = '';
 
-    if (groups.length === 0) {
-      const opt = document.createElement('option');
-      opt.value = '';
-      opt.textContent = 'Nenhum grupo cadastrado (clique em 🔄 acima)';
-      targetGroupSelect.appendChild(opt);
-      targetGroupSelect.disabled = true;
-      updatePinButtonUI();
+    const status = (typeof supabase !== 'undefined' && supabase.getPlanStatus)
+      ? supabase.getPlanStatus()
+      : { isSuperAdmin: false, maxAllowedGroups: 1, planName: 'STARTER' };
+    const maxAllowed = status.isSuperAdmin ? 9999 : (status.maxAllowedGroups || 1);
+
+    // Grupos ativos respeitando rigorosamente o limite do plano
+    const activeGroups = status.isSuperAdmin ? groups : groups.slice(0, maxAllowed);
+
+    if (activeGroups.length === 0) {
+      const emptyBox = document.createElement('div');
+      emptyBox.className = 'target-groups-empty-box';
+      emptyBox.innerHTML = `
+        <div class="empty-hint-text">
+          <span>⚠️ Nenhum grupo cadastrado para disparo</span>
+          <small>Cadastre até ${maxAllowed} grupo(s) do seu plano para disparar.</small>
+        </div>
+        <button type="button" class="btn-empty-register" id="btnEmptyRegisterGroups">
+          Cadastrar Grupos
+        </button>
+      `;
+      const btnReg = emptyBox.querySelector('#btnEmptyRegisterGroups');
+      if (btnReg) {
+        btnReg.addEventListener('click', openGroupRegisterModal);
+      }
+      targetGroupsContainer.appendChild(emptyBox);
+      updateTargetSelectedCountBadge();
+      return;
+    }
+
+    // Se nenhum grupo estiver selecionado, auto-seleciona
+    if (selectedDispatchGroups.size === 0) {
+      if (pinnedGroup && activeGroups.includes(pinnedGroup)) {
+        selectedDispatchGroups.add(pinnedGroup);
+      } else {
+        selectedDispatchGroups.add(activeGroups[0]);
+      }
+      chrome.storage.local.set({ ml_selected_dispatch_groups: Array.from(selectedDispatchGroups) });
+    }
+
+    // Limpa seleções de grupos que não existem mais entre os ativos
+    Array.from(selectedDispatchGroups).forEach(g => {
+      if (!activeGroups.includes(g)) {
+        selectedDispatchGroups.delete(g);
+      }
+    });
+
+    // Renderiza cada grupo cadastrado como pill interativo com checkbox
+    activeGroups.forEach(groupName => {
+      const isSelected = selectedDispatchGroups.has(groupName);
+      const isPinned = (groupName === pinnedGroup);
+
+      const pill = document.createElement('div');
+      pill.className = `target-group-pill ${isSelected ? 'selected' : ''}`;
+      pill.dataset.group = groupName;
+
+      const chk = document.createElement('input');
+      chk.type = 'checkbox';
+      chk.className = 'target-group-checkbox';
+      chk.checked = isSelected;
+
+      const waIcon = document.createElement('span');
+      waIcon.className = 'target-pill-icon';
+      waIcon.textContent = isPinned ? '📌' : '💬';
+
+      const label = document.createElement('span');
+      label.className = 'target-pill-name';
+      label.textContent = groupName;
+      label.title = groupName;
+
+      pill.appendChild(chk);
+      pill.appendChild(waIcon);
+      pill.appendChild(label);
+
+      pill.addEventListener('click', (e) => {
+        if (e.target !== chk) {
+          chk.checked = !chk.checked;
+        }
+        if (chk.checked) {
+          selectedDispatchGroups.add(groupName);
+          pill.classList.add('selected');
+        } else {
+          selectedDispatchGroups.delete(groupName);
+          pill.classList.remove('selected');
+        }
+        chrome.storage.local.set({ ml_selected_dispatch_groups: Array.from(selectedDispatchGroups) });
+        updateTargetSelectedCountBadge();
+      });
+
+      chk.addEventListener('change', (e) => {
+        e.stopPropagation();
+        if (chk.checked) {
+          selectedDispatchGroups.add(groupName);
+          pill.classList.add('selected');
+        } else {
+          selectedDispatchGroups.delete(groupName);
+          pill.classList.remove('selected');
+        }
+        chrome.storage.local.set({ ml_selected_dispatch_groups: Array.from(selectedDispatchGroups) });
+        updateTargetSelectedCountBadge();
+      });
+
+      targetGroupsContainer.appendChild(pill);
+    });
+
+    updateTargetSelectedCountBadge();
+  }
+
+  function updateTargetSelectedCountBadge() {
+    if (!targetSelectedCountBadge) return;
+    const count = selectedDispatchGroups.size;
+    targetSelectedCountBadge.textContent = `${count} selecionado(s)`;
+    if (count > 0) {
+      targetSelectedCountBadge.classList.add('has-selection');
+    } else {
+      targetSelectedCountBadge.classList.remove('has-selection');
+    }
+  }
+
+  function openGroupRegisterModal() {
+    if (!groupRegisterModal) return;
+    const status = (typeof supabase !== 'undefined' && supabase.getPlanStatus)
+      ? supabase.getPlanStatus()
+      : { isSuperAdmin: false, maxAllowedGroups: 1, planName: 'STARTER' };
+    const maxAllowed = status.isSuperAdmin ? 9999 : (status.maxAllowedGroups || 1);
+
+    if (modalPlanName) {
+      modalPlanName.textContent = `Plano: ${status.planName || 'STARTER'}`;
+    }
+    if (modalQuotaText) {
+      modalQuotaText.textContent = status.isSuperAdmin
+        ? 'Super Admin: Grupos Ilimitados'
+        : `Limite: até ${maxAllowed} grupo(s) cadastrado(s)`;
+    }
+
+    // Inicializa seleção temporária com os grupos já cadastrados
+    modalTempSelectedGroups = new Set(groups.slice(0, maxAllowed));
+
+    if (groupSearchInput) groupSearchInput.value = '';
+    renderAllDetectedGroupsList();
+    updateModalQuotaBadge();
+
+    groupRegisterModal.classList.remove('hidden');
+  }
+
+  function closeGroupRegisterModal() {
+    if (groupRegisterModal) {
+      groupRegisterModal.classList.add('hidden');
+    }
+  }
+
+  function updateModalQuotaBadge() {
+    if (!modalQuotaCounterBadge) return;
+    const status = (typeof supabase !== 'undefined' && supabase.getPlanStatus)
+      ? supabase.getPlanStatus()
+      : { isSuperAdmin: false, maxAllowedGroups: 1 };
+    const maxAllowed = status.isSuperAdmin ? 9999 : (status.maxAllowedGroups || 1);
+    const count = modalTempSelectedGroups.size;
+
+    modalQuotaCounterBadge.textContent = maxAllowed >= 9999
+      ? `${count} selecionado(s)`
+      : `${count} / ${maxAllowed} selecionados`;
+
+    if (count >= maxAllowed && !status.isSuperAdmin) {
+      modalQuotaCounterBadge.classList.add('limit-reached');
+    } else {
+      modalQuotaCounterBadge.classList.remove('limit-reached');
+    }
+  }
+
+  function renderAllDetectedGroupsList() {
+    if (!allDetectedGroupsList) return;
+    allDetectedGroupsList.innerHTML = '';
+
+    const filterText = (groupSearchInput ? groupSearchInput.value : '').toLowerCase().trim();
+
+    // Combina todos os grupos detectados + quaisquer grupos já cadastrados
+    const combinedSet = new Set([...groups, ...allDetectedGroups]);
+    let list = Array.from(combinedSet);
+
+    if (filterText) {
+      list = list.filter(g => g.toLowerCase().includes(filterText));
+    }
+
+    if (list.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'detected-groups-empty';
+      empty.innerHTML = `
+        <span>Nenhum grupo encontrado ${filterText ? 'com essa busca' : 'no WhatsApp'}.</span>
+        <small>Clique em "Puxar do WhatsApp" ou adicione pelo nome acima.</small>
+      `;
+      allDetectedGroupsList.appendChild(empty);
       return;
     }
 
     const status = (typeof supabase !== 'undefined' && supabase.getPlanStatus)
       ? supabase.getPlanStatus()
       : { isSuperAdmin: false, maxAllowedGroups: 1, planName: 'STARTER' };
-    const maxGroups = status.isSuperAdmin ? 9999 : (status.maxAllowedGroups || 1);
+    const maxAllowed = status.isSuperAdmin ? 9999 : (status.maxAllowedGroups || 1);
 
-    targetGroupSelect.disabled = false;
+    list.forEach(groupName => {
+      const isChecked = modalTempSelectedGroups.has(groupName);
 
-    const defaultOpt = document.createElement('option');
-    defaultOpt.value = '';
-    defaultOpt.textContent = 'Selecione o Grupo de WhatsApp...';
-    targetGroupSelect.appendChild(defaultOpt);
+      const item = document.createElement('div');
+      item.className = `detected-group-item ${isChecked ? 'checked' : ''}`;
 
-    groups.forEach((groupName, index) => {
-      const isLocked = !status.isSuperAdmin && index >= maxGroups;
-      const opt = document.createElement('option');
-      opt.value = groupName;
-      if (isLocked) {
-        opt.disabled = true;
-        opt.textContent = `🔒 ${groupName} (Requer Upgrade)`;
-      } else if (groupName === pinnedGroup) {
-        opt.textContent = `📌 ${groupName} (Padrão)`;
-      } else {
-        opt.textContent = groupName;
-      }
-      targetGroupSelect.appendChild(opt);
+      const chk = document.createElement('input');
+      chk.type = 'checkbox';
+      chk.className = 'detected-chk';
+      chk.checked = isChecked;
+
+      const name = document.createElement('span');
+      name.className = 'detected-name';
+      name.textContent = groupName;
+      name.title = groupName;
+
+      item.appendChild(chk);
+      item.appendChild(name);
+
+      const toggleCheck = () => {
+        if (!chk.checked) {
+          // Usuário quer marcar
+          if (modalTempSelectedGroups.size >= maxAllowed && !status.isSuperAdmin) {
+            showToast(`Limite atingido! O Plano ${status.planName} permite até ${maxAllowed} grupo(s). Faça upgrade para adicionar mais!`, '⚠️');
+            showUpgradeModal(
+              'Limite de Grupos do Plano',
+              `O seu plano (${status.planName}) permite até ${maxAllowed} grupo(s) cadastrado(s). Desmarque um grupo para selecionar outro, ou faça upgrade para o Plano Pro (5 grupos) ou Ultra (10 grupos)!`
+            );
+            chk.checked = false;
+            return;
+          }
+          modalTempSelectedGroups.add(groupName);
+          chk.checked = true;
+          item.classList.add('checked');
+        } else {
+          modalTempSelectedGroups.delete(groupName);
+          chk.checked = false;
+          item.classList.remove('checked');
+        }
+        updateModalQuotaBadge();
+      };
+
+      item.addEventListener('click', (e) => {
+        if (e.target !== chk) {
+          toggleCheck();
+        }
+      });
+
+      chk.addEventListener('change', () => {
+        chk.checked = !chk.checked;
+        toggleCheck();
+      });
+
+      allDetectedGroupsList.appendChild(item);
     });
+  }
 
-    const activeGroups = status.isSuperAdmin ? groups : groups.slice(0, maxGroups);
+  async function handleSaveRegisteredGroups() {
+    const status = (typeof supabase !== 'undefined' && supabase.getPlanStatus)
+      ? supabase.getPlanStatus()
+      : { isSuperAdmin: false, maxAllowedGroups: 1 };
+    const maxAllowed = status.isSuperAdmin ? 9999 : (status.maxAllowedGroups || 1);
 
-    if (currentSelected && activeGroups.includes(currentSelected)) {
-      targetGroupSelect.value = currentSelected;
-    } else if (pinnedGroup && activeGroups.includes(pinnedGroup)) {
-      targetGroupSelect.value = pinnedGroup;
-    } else if (activeGroups.length > 0) {
-      targetGroupSelect.value = activeGroups[0];
+    if (modalTempSelectedGroups.size > maxAllowed && !status.isSuperAdmin) {
+      showToast(`Você selecionou ${modalTempSelectedGroups.size} grupos, mas seu plano permite no máximo ${maxAllowed}!`, '⚠️');
+      return;
     }
 
-    updatePinButtonUI();
+    groups = Array.from(modalTempSelectedGroups);
+    await chrome.storage.local.set({ ml_whatsapp_groups: groups });
+
+    if (typeof supabase !== 'undefined' && supabase.session) {
+      try {
+        await supabase.updateProfile({ ml_whatsapp_groups: groups });
+      } catch (e) {
+        console.warn('[Supabase] Falha ao sincronizar grupos na nuvem:', e);
+      }
+    }
+
+    renderGroupsUI();
+    renderTargetGroupsSelector();
+    closeGroupRegisterModal();
+    showToast(`✅ ${groups.length} grupo(s) cadastrado(s) com sucesso!`, '🚀');
+  }
+
+  function handleAddManualGroup() {
+    if (!manualGroupNameInput) return;
+    const name = manualGroupNameInput.value.trim();
+    if (!name) {
+      showToast('Digite o nome do grupo.', '⚠️');
+      return;
+    }
+    const status = (typeof supabase !== 'undefined' && supabase.getPlanStatus)
+      ? supabase.getPlanStatus()
+      : { isSuperAdmin: false, maxAllowedGroups: 1, planName: 'STARTER' };
+    const maxAllowed = status.isSuperAdmin ? 9999 : (status.maxAllowedGroups || 1);
+
+    if (modalTempSelectedGroups.size >= maxAllowed && !status.isSuperAdmin) {
+      showToast(`Limite do plano atingido (${maxAllowed} grupo(s)).`, '⚠️');
+      showUpgradeModal(
+        'Limite de Grupos do Plano',
+        `O seu plano permite até ${maxAllowed} grupo(s) cadastrado(s). Faça upgrade para o Plano Pro (5 grupos) ou Ultra (10 grupos)!`
+      );
+      return;
+    }
+
+    modalTempSelectedGroups.add(name);
+    if (!allDetectedGroups.includes(name)) {
+      allDetectedGroups.unshift(name);
+      chrome.storage.local.set({ all_detected_whatsapp_groups: allDetectedGroups });
+    }
+    manualGroupNameInput.value = '';
+    renderAllDetectedGroupsList();
+    updateModalQuotaBadge();
+    showToast(`Grupo "${name}" adicionado à seleção!`, '✅');
+  }
+
+  function populateTargetGroupDropdown(selectValue = null) {
+    renderTargetGroupsSelector();
   }
 
   // =========================================================================
@@ -3066,12 +3442,13 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    const targetGroup = targetGroupSelect.value.trim();
-    if (!targetGroup) {
-      targetGroupSelect.classList.add('highlight-error');
-      setTimeout(() => targetGroupSelect.classList.remove('highlight-error'), 800);
-      targetGroupSelect.focus();
-      showToast('Selecione ou sincronize um grupo no menu acima!', '⚠️');
+    const selectedGroups = Array.from(selectedDispatchGroups);
+    if (selectedGroups.length === 0) {
+      if (targetGroupsContainer) {
+        targetGroupsContainer.classList.add('highlight-error');
+        setTimeout(() => targetGroupsContainer.classList.remove('highlight-error'), 800);
+      }
+      showToast('Selecione pelo menos um grupo cadastrado para o disparo!', '⚠️');
       return;
     }
 
@@ -3079,10 +3456,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const status = supabase.getPlanStatus();
       if (!status.isSuperAdmin) {
         const maxGroups = status.maxAllowedGroups || 1;
-        const groupIdx = groups.indexOf(targetGroup);
-        if (groupIdx >= maxGroups) {
+        const invalidGroup = selectedGroups.find(g => groups.indexOf(g) >= maxGroups || !groups.includes(g));
+        if (invalidGroup) {
           showToast(`O seu plano permite disparar para até ${maxGroups} grupo(s). Faça upgrade para o Pro ou Ultra!`, '⚠️');
-          showUpgradeModal('Limite de Grupos do Plano', `O grupo "${targetGroup}" ultrapassa a cota de ${maxGroups} grupo(s) do seu plano atual (${status.planName}). Faça upgrade para o Plano Pro (5 grupos) ou Ultra (10 grupos) para disparar para este grupo!`);
+          showUpgradeModal('Limite de Grupos do Plano', `O grupo "${invalidGroup}" ultrapassa a cota de ${maxGroups} grupo(s) do seu plano atual (${status.planName}). Faça upgrade para o Plano Pro (5 grupos) ou Ultra (10 grupos) para disparar para este grupo!`);
           return;
         }
       }
@@ -3110,36 +3487,61 @@ document.addEventListener('DOMContentLoaded', () => {
     const originalContent = btnElement.innerHTML;
     btnElement.classList.add('loading');
     btnElement.disabled = true;
-    btnElement.innerHTML = `
-      <div class="spinner" style="width:11px;height:11px;border-width:2px;border-top-color:#fff;"></div>
-      <span>Enviando...</span>
-    `;
 
     delete product.coupon;
 
     try {
       const currentTag = affiliateTagInput.value.trim() || affiliateTag;
-      const response = await chrome.runtime.sendMessage({
-        action: 'send_offer',
-        productData: product,
-        affiliateLink: affiliateLink,
-        affiliateTag: currentTag,
-        groupName: targetGroup,
-        messageText: customText,
-        copyStyle: currentCopyStyle
-      });
+      let successCount = 0;
+      let errors = [];
 
-      if (response && response.success) {
+      for (let i = 0; i < selectedGroups.length; i++) {
+        const gName = selectedGroups[i];
+        const shortName = gName.length > 12 ? gName.substring(0, 10) + '...' : gName;
+
+        btnElement.innerHTML = `
+          <div class="spinner" style="width:11px;height:11px;border-width:2px;border-top-color:#fff;"></div>
+          <span>(${i + 1}/${selectedGroups.length}) ${escapeHtml(shortName)}...</span>
+        `;
+
+        try {
+          const response = await chrome.runtime.sendMessage({
+            action: 'send_offer',
+            productData: product,
+            affiliateLink: affiliateLink,
+            affiliateTag: currentTag,
+            groupName: gName,
+            messageText: customText,
+            copyStyle: currentCopyStyle
+          });
+
+          if (response && response.success) {
+            successCount++;
+            showToast(`✅ Enviado para "${gName}" (${i + 1}/${selectedGroups.length})`, '🚀');
+          } else {
+            errors.push(response?.error || `Erro ao enviar para ${gName}`);
+          }
+        } catch (errGroup) {
+          errors.push(errGroup.message || `Erro no grupo ${gName}`);
+        }
+
+        // Intervalo de segurança anti-bloqueio entre grupos diferentes
+        if (i < selectedGroups.length - 1) {
+          await new Promise(r => setTimeout(r, 3500));
+        }
+      }
+
+      if (successCount > 0) {
         btnElement.classList.remove('loading');
         btnElement.classList.add('success');
-        btnElement.innerHTML = `<span>✅ Enviado!</span>`;
+        btnElement.innerHTML = `<span>✅ Enviado (${successCount}/${selectedGroups.length})</span>`;
 
-        showToast(`🚀 Oferta disparada com sucesso para "${targetGroup}"!`, '✅');
+        showToast(`🚀 Oferta disparada para ${successCount} grupo(s) com sucesso!`, '✅');
 
         // Atualiza contador de disparos na UI
         if (typeof supabase !== 'undefined' && supabase.profile) {
           if (supabase.profile.daily_dispatches_count !== undefined) {
-            supabase.profile.daily_dispatches_count++;
+            supabase.profile.daily_dispatches_count += successCount;
             renderUserPlanUI();
           }
         }
@@ -3150,7 +3552,7 @@ document.addEventListener('DOMContentLoaded', () => {
           btnElement.innerHTML = originalContent;
         }, 3000);
       } else {
-        throw new Error(response && response.error ? response.error : 'Erro desconhecido ao disparar');
+        throw new Error(errors.join(', ') || 'Erro desconhecido ao disparar para os grupos selecionados.');
       }
     } catch (err) {
       console.warn('Falha ao disparar oferta:', err);
@@ -4051,26 +4453,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    const targetGroup = targetGroupSelect.value.trim();
-    if (!targetGroup) {
-      targetGroupSelect.classList.add('highlight-error');
-      setTimeout(() => targetGroupSelect.classList.remove('highlight-error'), 800);
-      targetGroupSelect.focus();
-      showToast('Selecione ou sincronize um grupo no menu acima!', '⚠️');
-      return;
-    }
-
-    if (typeof supabase !== 'undefined') {
-      const status = supabase.getPlanStatus();
-      if (!status.isSuperAdmin) {
-        const maxGroups = status.maxAllowedGroups || 1;
-        const groupIdx = groups.indexOf(targetGroup);
-        if (groupIdx >= maxGroups) {
-          showToast(`O seu plano permite disparar para até ${maxGroups} grupo(s). Faça upgrade para o Pro ou Ultra!`, '⚠️');
-          showUpgradeModal('Limite de Grupos do Plano', `O grupo "${targetGroup}" ultrapassa a cota de ${maxGroups} grupo(s) do seu plano atual (${status.planName}). Faça upgrade para o Plano Pro (5 grupos) ou Ultra (10 grupos) para disparar para este grupo!`);
-          return;
-        }
+    const selectedGroups = Array.from(selectedDispatchGroups);
+    if (selectedGroups.length === 0) {
+      if (targetGroupsContainer) {
+        targetGroupsContainer.classList.add('highlight-error');
+        setTimeout(() => targetGroupsContainer.classList.remove('highlight-error'), 800);
       }
+      showToast('Selecione pelo menos um grupo cadastrado para o disparo!', '⚠️');
+      return;
     }
 
     const selectedItems = favoriteOffers.filter(f => selectedFavoriteUrls.has(f.url));
@@ -4102,8 +4492,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const resp = await chrome.runtime.sendMessage({
         action: 'start_mass_dispatch',
         products: selectedItems,
-        groupName: targetGroup,
-        targetGroup: targetGroup,
+        targetGroups: selectedGroups,
+        groupName: selectedGroups.join(', '),
+        targetGroup: selectedGroups.join(', '),
         affiliateTag: affiliateTagInput.value.trim() || affiliateTag,
         copyStyle: currentCopyStyle,
         minIntervalMinutes: 60,

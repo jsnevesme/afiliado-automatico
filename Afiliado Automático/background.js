@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Afiliado Mercado Livre - Background Service Worker (Manifest V3)
  * Motor de Busca Inteligente, Integração Groq/Llama AI, Sincronização WhatsApp Web,
  * Geração Oficial meli.la e Disparo Automatizado.
@@ -694,7 +694,11 @@ async function handleSyncWhatsAppGroups() {
     const mainGroups = mainResult?.result;
     if (Array.isArray(mainGroups) && mainGroups.length > 0) {
       console.log(`[Afiliado ML] ✅ ${mainGroups.length} grupos exclusivos (@g.us) obtidos diretamente do WhatsApp!`);
-      await chrome.storage.local.set({ ml_whatsapp_groups: mainGroups });
+      await chrome.storage.local.set({ all_detected_whatsapp_groups: mainGroups });
+      const currentStored = await chrome.storage.local.get(['ml_whatsapp_groups']);
+      if (!currentStored.ml_whatsapp_groups || currentStored.ml_whatsapp_groups.length === 0) {
+        await chrome.storage.local.set({ ml_whatsapp_groups: [mainGroups[0]] });
+      }
       return { groups: mainGroups };
     }
   } catch (err) {
@@ -716,7 +720,11 @@ async function handleSyncWhatsAppGroups() {
   }
 
   if (resp && resp.success && Array.isArray(resp.groups) && resp.groups.length > 0) {
-    await chrome.storage.local.set({ ml_whatsapp_groups: resp.groups });
+    await chrome.storage.local.set({ all_detected_whatsapp_groups: resp.groups });
+    const currentStored = await chrome.storage.local.get(['ml_whatsapp_groups']);
+    if (!currentStored.ml_whatsapp_groups || currentStored.ml_whatsapp_groups.length === 0) {
+      await chrome.storage.local.set({ ml_whatsapp_groups: [resp.groups[0]] });
+    }
     console.log(`[Afiliado ML] ${resp.groups.length} grupos sincronizados com sucesso via filtro nativo.`);
     return { groups: resp.groups };
   }
@@ -2881,8 +2889,12 @@ async function handleStartMassDispatch(params) {
   if (!Array.isArray(products) || products.length === 0) {
     throw new Error('Nenhum produto selecionado para o disparo em massa.');
   }
-  if (!groupName) {
-    throw new Error('Selecione um grupo de WhatsApp para o disparo em massa.');
+  const targetGroups = Array.isArray(params.targetGroups) && params.targetGroups.length > 0
+    ? params.targetGroups
+    : (groupName ? [groupName] : []);
+
+  if (targetGroups.length === 0) {
+    throw new Error('Selecione pelo menos um grupo de WhatsApp cadastrado para o disparo em massa.');
   }
 
   const minMin = Math.max(1, parseInt(minIntervalMinutes, 10) || 10);
@@ -2892,7 +2904,8 @@ async function handleStartMassDispatch(params) {
   const queue = {
     id: 'queue_' + Date.now(),
     status: 'running',
-    targetGroup: groupName,
+    targetGroups: targetGroups,
+    targetGroup: targetGroups.join(', '),
     affiliateTag: affiliateTag || '',
     copyStyle: copyStyle || 'vantagens_gatilhos',
     minIntervalMinutes: minMin,
@@ -3017,18 +3030,28 @@ async function processNextMassQueueItem() {
   console.log(`[Afiliado ML] Disparando item ${index + 1}/${queue.items.length}: "${currentItem.product.title}"...`);
 
   try {
-    // Envia a oferta: o handleSendOffer gera a copy individualizada com IA e o link meli.la oficial
-    const res = await handleSendOffer({
-      productData: currentItem.product,
-      affiliateTag: queue.affiliateTag,
-      groupName: queue.targetGroup,
-      messageText: '', // Deixa vazio para a IA criar uma copy exclusiva com o modelo selecionado
-      copyStyle: queue.copyStyle
-    });
+    const groupsToSend = (Array.isArray(queue.targetGroups) && queue.targetGroups.length > 0)
+      ? queue.targetGroups
+      : [queue.targetGroup];
+
+    let lastRes = null;
+    for (let g = 0; g < groupsToSend.length; g++) {
+      const gName = groupsToSend[g];
+      lastRes = await handleSendOffer({
+        productData: currentItem.product,
+        affiliateTag: queue.affiliateTag,
+        groupName: gName,
+        messageText: '', // Deixa vazio para a IA criar uma copy exclusiva com o modelo selecionado
+        copyStyle: queue.copyStyle
+      });
+      if (g < groupsToSend.length - 1) {
+        await new Promise(r => setTimeout(r, 3500));
+      }
+    }
 
     currentItem.status = 'sent';
     currentItem.dispatchedAt = Date.now();
-    currentItem.finalLink = res?.finalLink || '';
+    currentItem.finalLink = lastRes?.finalLink || '';
   } catch (err) {
     console.error(`[Afiliado ML] Erro ao disparar item ${index + 1}:`, err);
     currentItem.status = 'error';
