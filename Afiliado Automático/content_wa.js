@@ -376,6 +376,17 @@ async function dispatchWithLinkPreview(fullCopy, fallbackUrl, productData = null
     }
   }
 
+  // Bloqueio rigoroso: NUNCA disparar links internos de preview do Supabase
+  if (targetUrl && (targetUrl.includes('functions/v1/preview') || targetUrl.includes('supabase.co/functions'))) {
+    console.warn('[Afiliado WA] URL de preview interna detectada! Revertendo para link oficial:', fallbackUrl || productData?.url);
+    targetUrl = (fallbackUrl && !fallbackUrl.includes('functions/v1/preview') && !fallbackUrl.includes('supabase.co'))
+      ? fallbackUrl
+      : (productData?.url || '').split('?')[0];
+  }
+  if (fallbackUrl && (fallbackUrl.includes('functions/v1/preview') || fallbackUrl.includes('supabase.co/functions'))) {
+    fallbackUrl = (productData?.url || '').split('?')[0];
+  }
+
   // Validação estrita: NUNCA disparar links institucionais da Shopee ou outras plataformas
   if (targetUrl && (targetUrl.includes('careers.') || targetUrl.includes('help.shopee') || targetUrl.includes('/legal/'))) {
     if (fallbackUrl && !fallbackUrl.includes('careers.') && !fallbackUrl.includes('help.shopee') && !fallbackUrl.includes('/legal/')) {
@@ -388,6 +399,9 @@ async function dispatchWithLinkPreview(fullCopy, fallbackUrl, productData = null
       throw new Error('Link institucional detectado. Disparo cancelado automaticamente por segurança.');
     }
   }
+
+  // Remove qualquer resíduo de URL de preview interna do corpo do texto
+  fullCopy = fullCopy.replace(/https?:\/\/[a-z0-9]+\.supabase\.co\/functions\/v1\/preview[^\s<>"]*/gi, '').trim();
 
   // 2. Limpa completamente qualquer resíduo anterior no campo de digitação
   showOnScreenNotification('✍️ Preparando campo do WhatsApp...', '#2D3277');

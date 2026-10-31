@@ -32,10 +32,85 @@ chrome.runtime.onInstalled.addListener(async () => {
   await chrome.storage.local.remove(['ml_active_coupons', 'ml_coupons', 'active_coupons', 'activeCouponsList']);
 });
 
+// =============================================================================
+// SISTEMA DE AUTO-UPDATE & HOT-RELOAD (MODO DESENVOLVEDOR & PASTA LOCAL)
+// =============================================================================
+let lastKnownBuildTimestamp = null;
+let isCheckingUpdate = false;
+
+async function checkExtensionAutoUpdate(force = false) {
+  if (isCheckingUpdate && !force) return;
+  isCheckingUpdate = true;
+  try {
+    const url = chrome.runtime.getURL(`version.json?t=${Date.now()}`);
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) return;
+    const vData = await res.json();
+    if (!vData || !vData.buildTimestamp) return;
+
+    if (lastKnownBuildTimestamp === null) {
+      lastKnownBuildTimestamp = vData.buildTimestamp;
+      console.log(`[Afiliado Automático] 🚀 Auto-Update ativo. Versão: ${vData.version || '2.2.0'} (build: ${vData.buildTimestamp})`);
+      return;
+    }
+
+    if (vData.buildTimestamp !== lastKnownBuildTimestamp) {
+      console.log(`[Afiliado Automático] 🔄 Nova atualização detectada (${vData.version})! Recarregando extensão automaticamente...`);
+      lastKnownBuildTimestamp = vData.buildTimestamp;
+      setTimeout(() => {
+        try {
+          chrome.runtime.reload();
+        } catch (e) {
+          console.warn('[Afiliado Automático] Falha no chrome.runtime.reload():', e);
+        }
+      }, 250);
+    }
+  } catch (_) {
+    // Silencioso em caso de leitura local transitória
+  } finally {
+    isCheckingUpdate = false;
+  }
+}
+
+// Inicia verificação rápida contínua a cada 3.5 segundos
+checkExtensionAutoUpdate();
+setInterval(() => checkExtensionAutoUpdate(), 3500);
+
+// Cria alarme para despertar o Service Worker periodicamente
+try {
+  chrome.alarms.create('check_extension_auto_update_alarm', { periodInMinutes: 1 });
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'check_extension_auto_update_alarm') {
+      checkExtensionAutoUpdate();
+    }
+  });
+} catch (_) {}
+
 /**
  * Ouvinte Global de Mensagens
  */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // 0. AUTO-UPDATE & RECARREGAMENTO MANUAL OU AUTOMÁTICO DA EXTENSÃO
+  if (message.action === 'reload_extension') {
+    console.log('[Afiliado Automático] 🔄 Ordem de recarregamento manual recebida. Recarregando extensão...');
+    sendResponse({ success: true, reloaded: true });
+    setTimeout(() => {
+      try {
+        chrome.runtime.reload();
+      } catch (e) {
+        console.warn('[Afiliado Automático] Erro ao recarregar:', e);
+      }
+    }, 150);
+    return true;
+  }
+
+  if (message.action === 'check_extension_update') {
+    checkExtensionAutoUpdate(true)
+      .then(() => sendResponse({ success: true, lastBuild: lastKnownBuildTimestamp }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
   // 1. ORDEM DE BUSCA VINDA DO POPUP
   if (message.action === 'search_offers') {
     handleSearchOffers(message.query)
@@ -440,6 +515,25 @@ Regras: NÃO inclua link, responda APENAS com a mensagem pronta.`;
       }
       return `🔥 *${title}*\n\n💰 *${price}*`;
     }
+  },
+
+  // 8. Modo Aleatório (O sistema escolhe a cada disparo / alternância inteligente)
+  aleatorio: {
+    id: 'aleatorio',
+    name: '🎲 Modo Aleatório (O sistema escolhe)',
+    badge: '🎲 Modo Aleatório',
+    cta: '👉 *Compre com desconto aqui:*',
+    footer: '⚠️ _Valores sujeitos a alteração a qualquer momento._',
+    getPrompt: (params) => {
+      const REAL_KEYS = ['vantagens_gatilhos', 'alerta_bug', 'direto_ao_ponto', 'review_especialista', 'frete_gratis', 'ultimas_horas'];
+      const chosen = REAL_KEYS[Math.floor(Math.random() * REAL_KEYS.length)];
+      return COPY_STYLE_CONFIGS[chosen].getPrompt(params);
+    },
+    getFallbackBody: (params) => {
+      const REAL_KEYS = ['vantagens_gatilhos', 'alerta_bug', 'direto_ao_ponto', 'review_especialista', 'frete_gratis', 'ultimas_horas'];
+      const chosen = REAL_KEYS[Math.floor(Math.random() * REAL_KEYS.length)];
+      return COPY_STYLE_CONFIGS[chosen].getFallbackBody(params);
+    }
   }
 };
 
@@ -447,6 +541,7 @@ Regras: NÃO inclua link, responda APENAS com a mensagem pronta.`;
 COPY_STYLE_CONFIGS.curta_direta = COPY_STYLE_CONFIGS.direto_ao_ponto;
 COPY_STYLE_CONFIGS.detalhada_persuasiva = COPY_STYLE_CONFIGS.review_especialista;
 COPY_STYLE_CONFIGS.urgencia_escassez = COPY_STYLE_CONFIGS.alerta_bug;
+COPY_STYLE_CONFIGS.random = COPY_STYLE_CONFIGS.aleatorio;
 
 /**
  * Gera Copy Persuasiva usando a API do Groq conforme o modelo selecionado
@@ -454,7 +549,16 @@ COPY_STYLE_CONFIGS.urgencia_escassez = COPY_STYLE_CONFIGS.alerta_bug;
 async function handleGenerateAiCopy(productData, affiliateLink, requestedStyle = null) {
   const store = await chrome.storage.local.get(['groq_api_key', 'ml_copy_style', 'ml_custom_copy']);
   const apiKey = (store.groq_api_key || DEFAULT_GROQ_API_KEY).trim();
-  const styleKey = requestedStyle || store.ml_copy_style || 'vantagens_gatilhos';
+  let styleKey = requestedStyle || store.ml_copy_style || 'vantagens_gatilhos';
+
+  let chosenStyleName = null;
+  if (styleKey === 'aleatorio' || styleKey === 'random') {
+    const RANDOM_POOL = ['vantagens_gatilhos', 'alerta_bug', 'direto_ao_ponto', 'review_especialista', 'frete_gratis', 'ultimas_horas'];
+    styleKey = RANDOM_POOL[Math.floor(Math.random() * RANDOM_POOL.length)];
+    chosenStyleName = COPY_STYLE_CONFIGS[styleKey]?.name || styleKey;
+    console.log(`[Afiliado Automático] 🎲 Modo Aleatório ativado: Modelo sorteado foi "${chosenStyleName}" (${styleKey})`);
+  }
+
   const styleConfig = COPY_STYLE_CONFIGS[styleKey] || COPY_STYLE_CONFIGS.vantagens_gatilhos;
 
   const title = (productData?.title || 'Oferta Especial').trim();
@@ -480,10 +584,10 @@ async function handleGenerateAiCopy(productData, affiliateLink, requestedStyle =
 
     // Se o template já tiver placeholder de link, usa-o diretamente
     if (customTemplate.includes('{link}')) {
-      return { copy: populated, model: 'custom-template', style: 'custom' };
+      return { copy: populated, model: 'custom-template', style: 'custom', randomSelected: !!chosenStyleName, chosenStyleName };
     }
     const copy = sanitizeCopyForWhatsApp(populated, link, 'custom');
-    return { copy, model: 'custom-template', style: 'custom' };
+    return { copy, model: 'custom-template', style: 'custom', randomSelected: !!chosenStyleName, chosenStyleName };
   }
 
   // Tenta Groq se chave configurada
@@ -495,7 +599,7 @@ async function handleGenerateAiCopy(productData, affiliateLink, requestedStyle =
         let rawCopy = await callGroqChatCompletion(apiKey, model, prompt);
         if (rawCopy && rawCopy.length > 20) {
           const copy = sanitizeCopyForWhatsApp(rawCopy, link, styleKey);
-          return { copy, model, style: styleKey };
+          return { copy, model, style: styleKey, randomSelected: !!chosenStyleName, chosenStyleName };
         }
       } catch (err) {
         console.warn(`[Afiliado Automático] Modelo Groq ${model} falhou:`, err.message);
@@ -506,7 +610,7 @@ async function handleGenerateAiCopy(productData, affiliateLink, requestedStyle =
   // Fallback estruturado de alta fidelidade
   const fallbackBody = styleConfig.getFallbackBody({ title, price, originalPrice, discount, rating, reviews, sales, platformDetails, link, customTemplate });
   const fallback = sanitizeCopyForWhatsApp(fallbackBody, link, styleKey);
-  return { copy: fallback, model: 'fallback-template', style: styleKey };
+  return { copy: fallback, model: 'fallback-template', style: styleKey, randomSelected: !!chosenStyleName, chosenStyleName };
 }
 
 /**
@@ -634,7 +738,12 @@ function sanitizeCopyForWhatsApp(copyText, cleanUrl, styleKey = 'vantagens_gatil
 
   if (!cleanUrl) return cleanBody;
 
-  const sanitizedUrl = cleanUrl.trim().replace(/[*_~`"'.,;!?]+$/, '');
+  let sanitizedUrl = cleanUrl.trim().replace(/[*_~`"'.,;!?]+$/, '');
+  if (sanitizedUrl.includes('functions/v1/preview') || sanitizedUrl.includes('supabase.co/functions')) {
+    console.warn('[Afiliado Automático] URL de preview interna rejeitada em sanitizeCopyForWhatsApp.');
+    return cleanBody;
+  }
+
   const styleCfg = COPY_STYLE_CONFIGS[styleKey] || COPY_STYLE_CONFIGS.vantagens_gatilhos;
   const ctaLine = styleCfg.cta || '';
   const footerLine = styleCfg.footer || '';
@@ -2787,6 +2896,12 @@ async function handleSendOffer({ productData, affiliateLink, affiliateTag, group
       const sep = cleanBaseUrl.includes('?') ? '&' : '?';
       finalLink = `${cleanBaseUrl}${sep}matt_tool=${encodeURIComponent(tag)}&matt_word=${encodeURIComponent(tag)}&afiliado=${encodeURIComponent(tag)}`;
     }
+  }
+
+  // Validação estrita de segurança: finalLink NUNCA deve ser preview proxy ou URL interna
+  if (finalLink && (finalLink.includes('functions/v1/preview') || finalLink.includes('supabase.co/functions'))) {
+    console.warn('[Afiliado Automático] Link de preview rejeitado, usando URL direta do produto:', productData?.url);
+    finalLink = (productData?.url || '').split('?')[0];
   }
 
   // 3. Garante que temos a copy gerada por IA com o link oficial de afiliado

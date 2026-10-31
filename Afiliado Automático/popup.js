@@ -549,6 +549,19 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    // Botão de Recarregar Extensão (Manual Hot-Reload)
+    const btnReloadExtension = document.getElementById('btnReloadExtension');
+    if (btnReloadExtension) {
+      btnReloadExtension.addEventListener('click', (e) => {
+        e.preventDefault();
+        btnReloadExtension.style.transform = 'rotate(360deg)';
+        btnReloadExtension.style.transition = 'transform 0.4s ease';
+        showToast('Recarregando extensão...', '🔄');
+        chrome.runtime.sendMessage({ action: 'reload_extension' });
+        setTimeout(() => window.close(), 250);
+      });
+    }
+
     // Alternar Accordion de Configurações
     toggleConfigBtn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -1526,6 +1539,12 @@ document.addEventListener('DOMContentLoaded', () => {
       ? `*De:* ~${originalPrice}~ *Por apenas:* ${price}`
       : `*Preço:* ${price}`;
 
+    if (style === 'aleatorio' || style === 'random') {
+      const randomPool = ['vantagens_gatilhos', 'alerta_bug', 'direto_ao_ponto', 'review_especialista', 'frete_gratis', 'ultimas_horas'];
+      const picked = randomPool[Math.floor(Math.random() * randomPool.length)];
+      return buildFallbackCopy(picked, product, affiliateLink);
+    }
+
     if (style === 'custom') {
       const data = await chrome.storage.local.get(['ml_custom_copy']);
       if (data.ml_custom_copy) {
@@ -1621,7 +1640,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (res && res.success && res.copy) {
         aiCustomCopyTextarea.value = res.copy;
-        showToast('Copy de alta conversão gerada com sucesso!', '✨');
+        if (res.randomSelected && res.chosenStyleName) {
+          showToast(`🎲 Sorteado: ${res.chosenStyleName}`, '✨');
+        } else {
+          showToast('Copy de alta conversão gerada com sucesso!', '✨');
+        }
       } else {
         throw new Error(res?.error || 'Erro ao gerar copy');
       }
@@ -1682,7 +1705,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (res && res.success && res.copy) {
         favAiCustomCopyTextarea.value = res.copy;
-        showToast('Copy dos favoritos gerada com sucesso!', '✨');
+        if (res.randomSelected && res.chosenStyleName) {
+          showToast(`🎲 Sorteado: ${res.chosenStyleName}`, '✨');
+        } else {
+          showToast('Copy dos favoritos gerada com sucesso!', '✨');
+        }
       } else {
         throw new Error(res?.error || 'Erro ao gerar copy');
       }

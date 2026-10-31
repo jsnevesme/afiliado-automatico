@@ -65,6 +65,14 @@ export default function CopyStudioView({ profile, onProfileUpdate }) {
       badgeColor: 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300',
       desc: 'Perfeito para disparar à noite e acelerar membros indecisos antes da meia-noite.',
       copy: `⏰ *ÚLTIMAS HORAS DESSA OFERTA!* ⏰\n\n*{titulo}*\n\nDe ~R$ {preco_antigo}~ por *R$ {preco}*\n\n⚠️ O cupom/preço promocional pode expirar à meia-noite. Não deixe para depois!\n\n👇 *Link oficial com desconto:* {link}`
+    },
+    {
+      id: 'aleatorio',
+      title: '🎲 Modo Aleatório (Alternar Modelos)',
+      badge: 'Inteligência Dinâmica',
+      badgeColor: 'bg-violet-50 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300',
+      desc: 'O sistema sorteia e alterna automaticamente entre os melhores modelos persuasivos a cada disparo. Seus grupos nunca ficam repetitivos!',
+      copy: `[A cada envio o sistema escolherá de forma inteligente um modelo diferente: Vantagens & Gatilhos, Alerta Bug, Direto ao Ponto, Dica do Especialista, Frete Grátis ou Últimas Horas]`
     }
   ]
 

@@ -698,6 +698,7 @@
             <label class="shp-modal-label">Modelo de Copy (IA):</label>
             <select id="shpModalStyleSelect" class="shp-modal-select">
               <option value="vantagens_gatilhos" selected>⭐ Vantagens & Gatilhos</option>
+              <option value="aleatorio">🎲 Aleatório (O sistema escolhe)</option>
               <option value="curta_direta">⚡ Curta & Direta (Oferta Relâmpago)</option>
               <option value="detalhada_persuasiva">📋 Detalhada & Completa</option>
               <option value="urgencia_escassez">🔥 Urgência Máxima</option>

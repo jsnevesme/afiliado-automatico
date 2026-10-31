@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Afiliado Automático - Disparo de Ofertas WhatsApp",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Painel de Curadoria e Disparo em Massa de Ofertas Multiplataforma (Mercado Livre, Shopee, Amazon) com IA e links de afiliado oficiais para WhatsApp Web.",
   "permissions": [
     "activeTab",
@@ -93,5 +93,11 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["version.json", "icons/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }

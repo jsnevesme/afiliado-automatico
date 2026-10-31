@@ -20,6 +20,13 @@
         <button id="userPlanBadgeBtn" class="plan-badge-pill badge-superadmin" title="Ver detalhes da sua conta e plano">
           <span id="headerPlanBadgeText">👑 Super Admin</span>
         </button>
+        <!-- Botão de Recarregar Extensão (Hot-Update Manual Instantâneo) -->
+        <button id="btnReloadExtension" type="button" class="btn-icon-header" title="🔄 Recarregar Extensão (Atualizar Código)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 4v6h-6"></path>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+          </svg>
+        </button>
         <!-- Botão de Configurações da Extensão (SEMPRE FIXO E VISÍVEL) -->
         <button id="toggleConfigBtn" type="button" class="btn-icon-header" title="Configurações e Grupos">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -176,6 +183,7 @@
           <div class="select-wrapper">
             <select id="copyStyleSelect">
               <option value="vantagens_gatilhos" selected>⭐ Vantagens & Gatilhos Mentais (Recomendado)</option>
+              <option value="aleatorio">🎲 Modo Aleatório (Alternar Modelos Automaticamente)</option>
               <option value="alerta_bug">🚨 Alerta de Preço Baixo / Bug</option>
               <option value="direto_ao_ponto">⚡ Direto ao Ponto (Minimalista)</option>
               <option value="review_especialista">💡 Dica do Especialista / Autoridade</option>
