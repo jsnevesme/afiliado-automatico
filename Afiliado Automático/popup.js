@@ -3923,33 +3923,16 @@ document.addEventListener('DOMContentLoaded', () => {
           ? supabase.profile.favorite_offers
           : [];
 
-        const mergedMap = new Map();
-        // Adiciona itens locais
-        favoriteOffers.forEach((item) => {
-          if (item && item.url) {
-            const clean = cleanProductUrl(item.url);
-            mergedMap.set(clean, item);
-          }
-        });
-        // Mescla itens da nuvem
-        cloudFavs.forEach((item) => {
-          if (item && item.url) {
-            const clean = cleanProductUrl(item.url);
-            if (!mergedMap.has(clean)) {
-              mergedMap.set(clean, item);
-            } else {
-              const existing = mergedMap.get(clean);
-              mergedMap.set(clean, { ...existing, ...item });
-            }
-          }
-        });
+        const allFavs = [...favoriteOffers, ...cloudFavs];
+        const mergedList = (typeof deduplicateFavoritesList === 'function')
+          ? deduplicateFavoritesList(allFavs)
+          : allFavs;
 
-        const mergedList = Array.from(mergedMap.values());
         favoriteOffers = mergedList;
         await chrome.storage.local.set({ ml_favorite_offers: favoriteOffers });
 
-        // Se local tinha mais ou novos itens, sobe imediatamente para o Supabase
-        if (mergedList.length > cloudFavs.length) {
+        // Se houve itens desduplicados ou itens locais adicionais, persiste a lista limpa
+        if (mergedList.length !== cloudFavs.length) {
           await supabase.syncLocalToCloud({ favorite_offers: favoriteOffers });
         }
       } catch (err) {
@@ -4325,7 +4308,7 @@ document.addEventListener('DOMContentLoaded', () => {
         img.className = 'card-img';
         const resolvedImg = item.imageUrl || item.image || item.thumbnail || '';
         img.src = resolvedImg || 'icons/icon128.png';
-        img.alt = item.title || 'Produto';
+        img.alt = '';
         img.loading = 'lazy';
         img.onerror = () => { img.src = 'icons/icon128.png'; };
         imgWrapper.appendChild(img);

@@ -3202,6 +3202,15 @@ async function handleGetFavorites() {
     let updated = (cleanList.length !== list.length);
     list = cleanList;
 
+    // Desduplicação inteligente
+    if (typeof deduplicateFavoritesList === 'function') {
+      const deduped = deduplicateFavoritesList(list);
+      if (deduped.length !== list.length) {
+        list = deduped;
+        updated = true;
+      }
+    }
+
     for (const item of list) {
       let img = item.imageUrl || item.image || item.thumbnail || '';
       if (!img && item.url) {
@@ -3217,6 +3226,11 @@ async function handleGetFavorites() {
 
     if (updated) {
       await chrome.storage.local.set({ ml_favorite_offers: list });
+      if (typeof supabase !== 'undefined' && supabase.session) {
+        try {
+          await supabase.updateProfile({ favorite_offers: list });
+        } catch (e) {}
+      }
     }
     return list;
   } catch (e) {
@@ -3234,8 +3248,17 @@ async function handleToggleFavorite(product) {
   }
 
   const favorites = await handleGetFavorites();
-  const cleanUrl = product.url.split('?')[0].split('#')[0];
-  const existingIndex = favorites.findIndex(f => f.url && f.url.split('?')[0].split('#')[0] === cleanUrl);
+  const targetKey = (typeof getCanonicalProductKey === 'function')
+    ? getCanonicalProductKey(product)
+    : product.url.split('?')[0].split('#')[0];
+
+  const existingIndex = favorites.findIndex(f => {
+    if (!f) return false;
+    const fKey = (typeof getCanonicalProductKey === 'function')
+      ? getCanonicalProductKey(f)
+      : (f.url ? f.url.split('?')[0].split('#')[0] : '');
+    return fKey === targetKey;
+  });
 
   let isFavorite = false;
 
@@ -3305,7 +3328,21 @@ async function handleDeleteFavorite(idOrUrl) {
   if (!idOrUrl) throw new Error('Identificador da oferta não informado.');
   const favorites = await handleGetFavorites();
   const cleanTarget = String(idOrUrl).split('?')[0].split('#')[0];
-  const filtered = favorites.filter(f => f.id !== idOrUrl && (f.url && f.url.split('?')[0].split('#')[0] !== cleanTarget));
+  const targetKey = (typeof getCanonicalProductKey === 'function')
+    ? getCanonicalProductKey({ url: idOrUrl, id: idOrUrl })
+    : cleanTarget;
+
+  const filtered = favorites.filter(f => {
+    if (!f) return false;
+    if (f.id === idOrUrl) return false;
+    const fUrl = f.url ? f.url.split('?')[0].split('#')[0] : '';
+    if (fUrl === cleanTarget) return false;
+    if (typeof getCanonicalProductKey === 'function') {
+      const fKey = getCanonicalProductKey(f);
+      if (fKey && fKey === targetKey) return false;
+    }
+    return true;
+  });
   await chrome.storage.local.set({ ml_favorite_offers: filtered });
 
   if (typeof supabase !== 'undefined') {

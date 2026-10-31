@@ -15,6 +15,8 @@ import AuthModal from './components/AuthModal'
 import ProfileEditModal from './components/ProfileEditModal'
 import LandingPageView from './components/LandingPage/LandingPageView'
 import { Sparkles, Lock, ArrowRight, ShieldCheck } from 'lucide-react'
+import { deduplicateFavorites } from './lib/favoritesDeduplicator'
+
 
 export default function App() {
   const [user, setUser] = useState(null)
@@ -222,13 +224,18 @@ export default function App() {
 
       setProfile(mergedProfile)
 
-      // Carrega favoritos: prioridade absoluta para a nuvem profiles.favorite_offers
+      // Carrega favoritos: prioridade absoluta para a nuvem profiles.favorite_offers com desduplicação automática
       const cloudFavs = (prof?.favorite_offers && Array.isArray(prof.favorite_offers)) ? prof.favorite_offers : []
-      const loadedFavs = cloudFavs.length > 0 ? cloudFavs : (localFavs.length > 0 ? localFavs : [])
+      const rawFavs = cloudFavs.length > 0 ? cloudFavs : (localFavs.length > 0 ? localFavs : [])
+      const loadedFavs = deduplicateFavorites(rawFavs)
       setFavorites(loadedFavs)
 
       try {
         localStorage.setItem('user_favs_' + userId, JSON.stringify(loadedFavs))
+        // Se havia itens duplicados na nuvem ou localmente, persiste a lista limpa e unificada
+        if (rawFavs.length > loadedFavs.length) {
+          supabase.from('profiles').update({ favorite_offers: loadedFavs }).eq('id', userId)
+        }
       } catch (e) {}
 
       // Carrega pastas: nuvem > auth user_metadata > local > padrão idêntico à extensão
@@ -313,9 +320,10 @@ export default function App() {
         (payload) => {
           if (payload.new) {
             if (Array.isArray(payload.new.favorite_offers)) {
-              setFavorites(payload.new.favorite_offers)
+              const cleaned = deduplicateFavorites(payload.new.favorite_offers)
+              setFavorites(cleaned)
               try {
-                localStorage.setItem('user_favs_' + user.id, JSON.stringify(payload.new.favorite_offers))
+                localStorage.setItem('user_favs_' + user.id, JSON.stringify(cleaned))
               } catch (e) {}
             }
             if (Array.isArray(payload.new.favorite_folders)) {
@@ -376,11 +384,12 @@ export default function App() {
 
   // 5. Atualizar Favoritos
   const handleUpdateFavorites = async (newFavs) => {
-    setFavorites(newFavs)
+    const cleanedFavs = deduplicateFavorites(newFavs)
+    setFavorites(cleanedFavs)
     if (user) {
       try {
-        localStorage.setItem('user_favs_' + user.id, JSON.stringify(newFavs))
-        await supabase.from('profiles').update({ favorite_offers: newFavs }).eq('id', user.id)
+        localStorage.setItem('user_favs_' + user.id, JSON.stringify(cleanedFavs))
+        await supabase.from('profiles').update({ favorite_offers: cleanedFavs }).eq('id', user.id)
       } catch (e) {
         console.warn('Erro ao atualizar favoritos:', e)
       }

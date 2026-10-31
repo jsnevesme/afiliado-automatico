@@ -431,32 +431,12 @@ class SupabaseClient {
       localUpdates.favorite_folders = cloudFolders;
     }
 
-    // Fusão bidirecional inteligente de ofertas favoritas (preserva itens locais e da nuvem)
+    // Fusão bidirecional inteligente de ofertas favoritas (preserva itens locais e da nuvem, eliminando duplicatas)
     const stored = await new Promise((r) => chrome.storage.local.get(['ml_favorite_offers'], r));
     const localFavs = Array.isArray(stored.ml_favorite_offers) ? stored.ml_favorite_offers : [];
     const cloudFavs = Array.isArray(p.favorite_offers) ? p.favorite_offers : [];
 
-    const mergedMap = new Map();
-    localFavs.forEach((item) => {
-      if (item && item.url) {
-        const clean = item.url.split('?')[0].split('#')[0];
-        mergedMap.set(clean, item);
-      }
-    });
-
-    cloudFavs.forEach((item) => {
-      if (item && item.url) {
-        const clean = item.url.split('?')[0].split('#')[0];
-        if (!mergedMap.has(clean)) {
-          mergedMap.set(clean, item);
-        } else {
-          const existing = mergedMap.get(clean);
-          mergedMap.set(clean, { ...existing, ...item });
-        }
-      }
-    });
-
-    const mergedFavs = Array.from(mergedMap.values());
+    const mergedFavs = deduplicateFavoritesList([...localFavs, ...cloudFavs]);
     localUpdates.ml_favorite_offers = mergedFavs;
     localUpdates.favorite_offers = mergedFavs;
 
@@ -464,12 +444,12 @@ class SupabaseClient {
       chrome.storage.local.set(localUpdates, resolve);
     });
 
-    // Se o cliente local possuía favoritos que ainda não haviam subido para o Supabase, faz upload agora
-    if (mergedFavs.length > cloudFavs.length) {
+    // Se houve deduplicação ou novos itens locais que faltavam na nuvem, persiste a lista limpa no Supabase
+    if (mergedFavs.length !== cloudFavs.length) {
       try {
         await this.updateProfile({ favorite_offers: mergedFavs });
       } catch (e) {
-        console.warn('[Supabase] Falha ao enviar favoritos locais mesclados para a nuvem:', e);
+        console.warn('[Supabase] Falha ao enviar favoritos limpos para a nuvem:', e);
       }
     }
   }
@@ -768,4 +748,130 @@ if (typeof window !== 'undefined') {
 }
 if (typeof globalThis !== 'undefined') {
   globalThis.supabase = supabase;
+}
+
+/**
+ * Utilitário de Desduplicação e Sanitização de Favoritos
+ * Remove cards duplicados (com links ou variações diferentes do mesmo produto)
+ * e prioriza cards com fotos válidas e dados mais completos.
+ */
+function getCanonicalProductKey(item) {
+  if (!item) return '';
+
+  const rawUrl = (item.url || item.affiliate_link || item.pageUrl || '').trim().toLowerCase();
+  const rawTitle = (item.title || item.product_title || '').trim().toLowerCase();
+
+  // 1. Amazon: Detecção por ASIN (B0...)
+  const amzMatch = rawUrl.match(/\/(?:dp|gp\/product)\/([a-z0-9]{10})/i) ||
+                   (item.asin ? [null, item.asin.toLowerCase()] : null);
+  if (amzMatch && amzMatch[1]) {
+    return `amazon_${amzMatch[1].toLowerCase()}`;
+  }
+
+  // 2. Shopee: Detecção por Shop ID + Item ID (-i.SHOP.ITEM ou /product/SHOP/ITEM)
+  const shpMatch = rawUrl.match(/-i\.(\d+)\.(\d+)/) || rawUrl.match(/\/product\/(\d+)\/(\d+)/);
+  if (shpMatch && shpMatch[1] && shpMatch[2]) {
+    return `shopee_${shpMatch[1]}_${shpMatch[2]}`;
+  }
+
+  // 3. Mercado Livre: Detecção por MLB ID (/p/MLB... ou MLB-12345 ou MLB12345)
+  const mlbMatch = rawUrl.match(/(mlb[-_]?[0-9]{6,14})/i);
+  if (mlbMatch && mlbMatch[1]) {
+    return `ml_${mlbMatch[1].replace(/[-_]/g, '').toLowerCase()}`;
+  }
+
+  // 4. Detecção por Título Normalizado (se tiver pelo menos 8 caracteres)
+  if (rawTitle && rawTitle.length >= 8) {
+    const cleanTitle = rawTitle
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    let plat = (item.platform || '').toLowerCase();
+    if (!plat) {
+      if (rawUrl.includes('amazon') || rawUrl.includes('amzn.to')) plat = 'amazon';
+      else if (rawUrl.includes('shopee') || rawUrl.includes('s.shopee')) plat = 'shopee';
+      else plat = 'mercadolivre';
+    }
+
+    const words = cleanTitle.split(' ').filter(w => w.length > 2).slice(0, 7).join('_');
+    if (words.length >= 6) {
+      return `${plat}_title_${words}`;
+    }
+  }
+
+  return rawUrl.split('?')[0].split('#')[0];
+}
+
+function deduplicateFavoritesList(items = []) {
+  if (!Array.isArray(items) || items.length === 0) return [];
+
+  const map = new Map();
+  for (const item of items) {
+    if (!item) continue;
+    const key = getCanonicalProductKey(item);
+    if (!key) continue;
+
+    if (!map.has(key)) {
+      map.set(key, { ...item });
+    } else {
+      const existing = map.get(key);
+
+      const existingImg = String(existing.imageUrl || existing.image || existing.product_image || '').trim();
+      const itemImg = String(item.imageUrl || item.image || item.product_image || '').trim();
+
+      const isItemImgValid = itemImg.startsWith('http') && !itemImg.includes('placeholder') && !itemImg.includes('logo_') && !itemImg.includes('undefined');
+      const isExistingImgValid = existingImg.startsWith('http') && !existingImg.includes('placeholder') && !existingImg.includes('logo_') && !existingImg.includes('undefined');
+
+      let bestImage = existingImg;
+      if (!isExistingImgValid && isItemImgValid) {
+        bestImage = itemImg;
+      } else if (isItemImgValid && isExistingImgValid) {
+        if (itemImg.includes('-O.') && !existingImg.includes('-O.')) {
+          bestImage = itemImg;
+        }
+      }
+
+      const bestFolderId = existing.folder_id || item.folder_id || null;
+
+      let bestLink = existing.affiliate_link || existing.url;
+      const itemLink = item.affiliate_link || item.url || '';
+      if (itemLink.includes('meli.la') || itemLink.includes('s.shopee') || itemLink.includes('amzn.to')) {
+        bestLink = itemLink;
+      }
+
+      const bestPrice = existing.price || item.price;
+      const bestRawPrice = existing.rawPrice || item.rawPrice;
+      const bestCommission = existing.commissionPercent || item.commissionPercent || existing.commissionPrice || item.commissionPrice;
+      const bestDiscount = existing.discount || item.discount;
+
+      map.set(key, {
+        ...existing,
+        ...item,
+        id: existing.id || item.id,
+        imageUrl: bestImage,
+        image: bestImage,
+        product_image: bestImage,
+        folder_id: bestFolderId,
+        affiliate_link: bestLink,
+        price: bestPrice,
+        rawPrice: bestRawPrice,
+        discount: bestDiscount,
+        commissionPercent: bestCommission
+      });
+    }
+  }
+
+  return Array.from(map.values());
+}
+
+if (typeof window !== 'undefined') {
+  window.getCanonicalProductKey = getCanonicalProductKey;
+  window.deduplicateFavoritesList = deduplicateFavoritesList;
+}
+if (typeof globalThis !== 'undefined') {
+  globalThis.getCanonicalProductKey = getCanonicalProductKey;
+  globalThis.deduplicateFavoritesList = deduplicateFavoritesList;
 }

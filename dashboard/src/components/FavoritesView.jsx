@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import {
   BookmarkCheck,
   FolderPlus,
@@ -19,6 +19,8 @@ import {
   FolderTree
 } from 'lucide-react'
 import { supabase } from '../supabase'
+import { deduplicateFavorites } from '../lib/favoritesDeduplicator'
+
 
 export default function FavoritesView({
   favorites = [],
@@ -32,6 +34,20 @@ export default function FavoritesView({
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPlatform, setSelectedPlatform] = useState('all')
   const [copiedId, setCopiedId] = useState(null)
+  const [brokenImages, setBrokenImages] = useState(new Set())
+
+  // Desduplicação Inteligente de Favoritos (unifica variações do mesmo produto)
+  const cleanFavorites = useMemo(() => deduplicateFavorites(favorites), [favorites])
+
+  // Sincronização automática para limpar duplicatas antigas do banco
+  useEffect(() => {
+    if (favorites && favorites.length > 0) {
+      const deduped = deduplicateFavorites(favorites)
+      if (deduped.length < favorites.length) {
+        onUpdateFavorites(deduped)
+      }
+    }
+  }, [favorites])
 
   // Modais de Criação de Pasta e Produto
   const [folderModalOpen, setFolderModalOpen] = useState(false)
@@ -86,7 +102,7 @@ export default function FavoritesView({
     if (!confirm('Deseja realmente excluir esta pasta? Os produtos não serão apagados, apenas desvinculados.')) return
 
     const updatedFolders = folders.filter(f => f.id !== folderId)
-    const updatedFavorites = favorites.map(fav => fav.folder_id === folderId ? { ...fav, folder_id: null } : fav)
+    const updatedFavorites = cleanFavorites.map(fav => fav.folder_id === folderId ? { ...fav, folder_id: null } : fav)
 
     onUpdateFolders(updatedFolders)
     onUpdateFavorites(updatedFavorites)
@@ -95,7 +111,7 @@ export default function FavoritesView({
 
   // 3. Mover produto para outra pasta
   const handleMoveProductFolder = async (prodId, targetFolderId) => {
-    const updatedFavorites = favorites.map(fav => {
+    const updatedFavorites = cleanFavorites.map(fav => {
       if (fav.id === prodId || fav.url === prodId) {
         return { ...fav, folder_id: targetFolderId || null }
       }
@@ -108,7 +124,7 @@ export default function FavoritesView({
   // 4. Remover produto dos favoritos
   const handleRemoveFavorite = async (prodId) => {
     if (!confirm('Remover este produto dos favoritos?')) return
-    const updatedFavorites = favorites.filter(fav => fav.id !== prodId && fav.url !== prodId)
+    const updatedFavorites = cleanFavorites.filter(fav => fav.id !== prodId && fav.url !== prodId)
     onUpdateFavorites(updatedFavorites)
   }
 
@@ -134,7 +150,7 @@ export default function FavoritesView({
       savedAt: Date.now()
     }
 
-    const updatedFavorites = [newProd, ...favorites]
+    const updatedFavorites = [newProd, ...cleanFavorites]
     onUpdateFavorites(updatedFavorites)
 
     setNewProdTitle('')
@@ -155,8 +171,8 @@ export default function FavoritesView({
     return 'mercadolivre'
   }
 
-  // Filtragem
-  const filteredFavorites = favorites.filter((item) => {
+  // Filtragem sobre a lista desduplicada
+  const filteredFavorites = cleanFavorites.filter((item) => {
     const plat = getPlatform(item)
     const matchesSearch =
       (item.title || item.product_title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -235,13 +251,13 @@ export default function FavoritesView({
             <FolderOpen className="h-3.5 w-3.5" />
             <span>Todas as Pastas</span>
             <span className="rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-2 py-0.2 text-[10px]">
-              {favorites.length}
+              {cleanFavorites.length}
             </span>
           </button>
 
           {/* Pastas Criadas pelo Usuário */}
           {folders.map((fld) => {
-            const count = favorites.filter(fav => fav.folder_id === fld.id).length
+            const count = cleanFavorites.filter(fav => fav.folder_id === fld.id).length
             const isSelected = selectedFolderId === fld.id
             const col = folderColors.find(c => c.id === fld.color) || folderColors[0]
 
@@ -277,7 +293,7 @@ export default function FavoritesView({
           })}
 
           {/* Sem Pasta (Desorganizados) */}
-          {favorites.some(fav => !fav.folder_id) && (
+          {cleanFavorites.some(fav => !fav.folder_id) && (
             <button
               onClick={() => setSelectedFolderId('unorganized')}
               className={`flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold transition-all whitespace-nowrap ${
@@ -288,7 +304,7 @@ export default function FavoritesView({
             >
               <span>Sem Pasta</span>
               <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.2 text-[10px]">
-                {favorites.filter(fav => !fav.folder_id).length}
+                {cleanFavorites.filter(fav => !fav.folder_id).length}
               </span>
             </button>
           )}
@@ -346,24 +362,34 @@ export default function FavoritesView({
             const currentFolder = getFolderById(item.folder_id)
             const prodImg = item.imageUrl || item.image || item.product_image || ''
             const prodPrice = item.price || (item.rawPrice ? `R$ ${item.rawPrice.toFixed(2).replace('.', ',')}` : '')
+            const itemKey = item.id || item.url || item.affiliate_link || 'fav_' + Math.random()
+            const isBroken = brokenImages.has(itemKey)
 
             return (
               <div
-                key={item.id || item.url}
+                key={itemKey}
                 className="group rounded-[26px] bg-white dark:bg-[#121724] border border-slate-200/70 dark:border-slate-800 p-4 shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
               >
                 <div>
                   {/* Foto do Produto */}
                   <div className="relative h-44 w-full rounded-2xl bg-slate-50 dark:bg-slate-900/60 p-2 flex items-center justify-center overflow-hidden mb-3 border border-slate-100 dark:border-slate-800">
-                    {prodImg ? (
+                    {prodImg && !isBroken ? (
                       <img
                         src={prodImg}
-                        alt={item.title || item.product_title}
+                        alt=""
+                        onError={() => setBrokenImages(prev => {
+                          const next = new Set(prev)
+                          next.add(itemKey)
+                          return next
+                        })}
                         className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-300"
                         loading="lazy"
                       />
                     ) : (
-                      <ShoppingBag className="h-10 w-10 text-slate-300 dark:text-slate-700" />
+                      <div className="flex flex-col items-center justify-center text-slate-300 dark:text-slate-700">
+                        <ShoppingBag className="h-10 w-10 mb-1 opacity-70" />
+                        <span className="text-[10px] font-semibold text-slate-400">Sem Imagem</span>
+                      </div>
                     )}
 
                     {/* Badge da Loja */}
