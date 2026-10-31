@@ -295,13 +295,27 @@ export default function Sidebar({
               </div>
             </div>
 
-            {/* Botão de Upgrade / Meu Perfil */}
-            <button
-              onClick={onOpenProfile}
-              className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-slate-100 dark:bg-slate-700/60 hover:bg-slate-200/70 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-1.5 text-[11px] font-semibold transition-colors"
-            >
-              <span>Editar Perfil & Foto</span>
-            </button>
+            {/* Botões de Ação do Perfil & Logout */}
+            <div className="flex items-center gap-1.5 pt-0.5">
+              <button
+                type="button"
+                onClick={onOpenProfile}
+                className="flex-1 flex items-center justify-center gap-1 rounded-xl bg-slate-100 dark:bg-slate-700/60 hover:bg-slate-200/70 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-1.5 text-[11px] font-semibold transition-colors cursor-pointer"
+                title="Editar Nome e Foto de Perfil"
+              >
+                <span>Perfil</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onLogout}
+                className="flex items-center justify-center gap-1 rounded-xl bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 px-3 py-1.5 text-[11px] font-bold transition-colors cursor-pointer border border-red-100 dark:border-red-900/40"
+                title="Sair da conta com segurança"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                <span>Sair</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

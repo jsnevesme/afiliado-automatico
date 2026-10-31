@@ -23,6 +23,7 @@ import {
   Layers,
   Clock,
   LayoutDashboard,
+  LogOut,
   CheckCheck,
   AlertTriangle,
   CreditCard,
@@ -42,10 +43,10 @@ import ThreeDTestimonials, { Marquee } from '../ui/3d-testimonials'
 import PricingSection from '../ui/pricing-section'
 
 export default function LandingPageView({
+  user,
+  onLogout,
   onGoToDashboard,
-  onOpenAuth,
-  darkMode,
-  onToggleDarkMode
+  onOpenAuth
 }) {
   const [billingCycle, setBillingCycle] = useState('monthly') // 'monthly' | 'annual'
   const [openFaq, setOpenFaq] = useState(0)
@@ -143,22 +144,47 @@ export default function LandingPageView({
 
           {/* Ações na Direita */}
           <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={onGoToDashboard}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-stone-300 text-xs font-bold text-stone-700 hover:bg-stone-100 transition-all cursor-pointer"
-            >
-              <LayoutDashboard className="h-3.5 w-3.5" />
-              <span>Acessar Painel</span>
-            </button>
+            {user ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onGoToDashboard}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+                >
+                  <LayoutDashboard className="h-3.5 w-3.5" />
+                  <span>Acessar Painel</span>
+                </button>
 
-            <a
-              href="#pricing"
-              className="hidden sm:inline-flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all"
-            >
-              <span>Começar Agora</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </a>
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-stone-300 hover:bg-stone-100 text-stone-700 text-xs font-bold transition-all cursor-pointer"
+                  title="Sair da conta"
+                >
+                  <LogOut className="h-3.5 w-3.5 text-stone-500" />
+                  <span className="hidden sm:inline">Sair</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onOpenAuth('login')}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-stone-300 text-xs font-bold text-stone-700 hover:bg-stone-100 transition-all cursor-pointer"
+                >
+                  <span>Entrar</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onOpenAuth('register')}
+                  className="hidden sm:inline-flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+                >
+                  <span>Criar Conta</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -189,18 +215,31 @@ export default function LandingPageView({
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-            <a
-              href="#pricing"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-sm shadow-xl shadow-blue-500/25 transition-all transform hover:scale-[1.01] active:scale-[0.99]"
-            >
-              <span>Começar Agora</span>
-              <ArrowRight className="h-4 w-4" />
-            </a>
+            {user ? (
+              <button
+                type="button"
+                onClick={onGoToDashboard}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-sm shadow-xl shadow-blue-500/25 transition-all transform hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+              >
+                <LayoutDashboard className="h-4 w-4" />
+                <span>Acessar Meu Painel</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onOpenAuth('register')}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-sm shadow-xl shadow-blue-500/25 transition-all transform hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+              >
+                <span>Criar Conta Grátis</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            )}
 
             <a
               href="/afiliado-automatico.zip"
               download="afiliado-automatico.zip"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-stone-300 dark:border-slate-700 text-stone-800 dark:text-slate-100 font-bold text-sm shadow-xs hover:bg-stone-50 dark:hover:bg-slate-700/60 transition-all"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-white border border-stone-300 text-stone-800 font-bold text-sm shadow-xs hover:bg-stone-50 transition-all"
             >
               <ChromeLogo className="h-4 w-4" />
               <span>Baixar Extensão (.ZIP)</span>
@@ -493,7 +532,14 @@ export default function LandingPageView({
                 <li><a href="#pricing" className="hover:text-white transition-colors">Plano Ultra (10 Grupos)</a></li>
                 <li><a href="#pricing" className="hover:text-white transition-colors">Garantia de 7 Dias</a></li>
                 <li>
-                  <button onClick={onGoToDashboard} className="text-blue-400 hover:underline font-bold text-left cursor-pointer">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (user) onGoToDashboard()
+                      else onOpenAuth('login')
+                    }}
+                    className="text-blue-400 hover:underline font-bold text-left cursor-pointer"
+                  >
                     Área do Assinante →
                   </button>
                 </li>

@@ -1,11 +1,12 @@
 import React from 'react'
-import { RefreshCw, Plus, Search, Sun, Moon, Globe, ExternalLink } from 'lucide-react'
+import { RefreshCw, Plus, Search, Sun, Moon, Globe, ExternalLink, LogOut } from 'lucide-react'
 
 export default function TopHeader({
   currentTab,
   onRefresh,
   profile,
   user,
+  onLogout,
   isSuperAdmin,
   onOpenNewSale,
   darkMode,
@@ -94,6 +95,19 @@ export default function TopHeader({
           <RefreshCw className={`h-3 w-3 ${syncing ? 'animate-spin text-blue-600 dark:text-blue-400' : ''}`} />
           <span className="hidden sm:inline text-[11px] font-bold">{syncing ? 'Sincronizando...' : 'Sincronizar'}</span>
         </button>
+
+        {/* Botão Desconectar da Conta */}
+        {onLogout && (
+          <button
+            type="button"
+            onClick={onLogout}
+            title="Sair da conta com segurança"
+            className="flex items-center gap-1.5 rounded-full border border-red-200/80 dark:border-red-900/60 bg-red-50/80 dark:bg-red-950/50 px-3 py-1.5 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/60 transition-all shadow-2xs cursor-pointer"
+          >
+            <LogOut className="h-3 w-3" />
+            <span className="hidden sm:inline text-[11px]">Sair</span>
+          </button>
+        )}
 
         {/* Botão de Ação Primária Pílula Preto */}
         {currentTab === 'analytics' && (

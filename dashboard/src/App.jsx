@@ -27,6 +27,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [profileModalOpen, setProfileModalOpen] = useState(false)
   const [authModalOpen, setAuthModalOpen] = useState(false)
+  const [authModalMode, setAuthModalMode] = useState('login')
   const [syncing, setSyncing] = useState(false)
   const [viewMode, setViewMode] = useState(() => {
     try {
@@ -89,41 +90,30 @@ export default function App() {
     }
   }, [darkMode, viewMode])
 
-  // 1. Monitora estado de autenticação e auto-login Super Admin
+  // 1. Monitora estado de autenticação real (sem auto-login inseguro)
   useEffect(() => {
     let isMounted = true
 
     const initAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
-        let activeUser = session?.user
-
-        // Se ainda não houver sessão ativa na plataforma,
-        // autentica automaticamente a conta Super Admin jsnevesme@gmail.com
-        // exatamente como a extensão do navegador faz no popup.js
-        if (!activeUser) {
-          try {
-            const { data: autoLogin, error: autoErr } = await supabase.auth.signInWithPassword({
-              email: 'jsnevesme@gmail.com',
-              password: 'Admin123456!'
-            })
-            if (autoLogin?.user && !autoErr) {
-              activeUser = autoLogin.user
-            }
-          } catch (e) {
-            console.warn('[Dashboard] Tentativa de auto-login:', e)
-          }
-        }
+        const activeUser = session?.user
 
         if (activeUser && isMounted) {
           setUser(activeUser)
           await fetchAllUserData(activeUser)
         } else if (isMounted) {
+          setUser(null)
+          setProfile(null)
           setLoading(false)
         }
       } catch (err) {
         console.warn('[Dashboard] Erro na inicialização da autenticação:', err)
-        if (isMounted) setLoading(false)
+        if (isMounted) {
+          setUser(null)
+          setProfile(null)
+          setLoading(false)
+        }
       }
     }
 
@@ -213,10 +203,11 @@ export default function App() {
         }
       } catch (e) {}
 
+      const isSuperAdminEmail = currentUser.email?.toLowerCase() === 'jsnevesme@gmail.com'
       const mergedProfile = {
         ...(prof || {}),
-        role: prof?.role || 'superadmin',
-        full_name: prof?.full_name || authMeta.full_name || localMeta.full_name || 'Jonathan Neves',
+        role: prof?.role || (isSuperAdminEmail ? 'superadmin' : 'user'),
+        full_name: prof?.full_name || authMeta.full_name || localMeta.full_name || (isSuperAdminEmail ? 'Jonathan Neves' : currentUser.email?.split('@')[0] || 'Afiliado'),
         avatar_url: prof?.avatar_url || authMeta.avatar_url || localMeta.avatar_url || ''
       }
 
@@ -408,37 +399,27 @@ export default function App() {
   }
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
+    try {
+      await supabase.auth.signOut()
+    } catch (e) {
+      console.warn('Erro ao deslogar:', e)
+    }
     setUser(null)
     setProfile(null)
     setDispatches([])
     setSales([])
     setFavorites([])
     setFolders([])
+    handleSetViewMode('landing')
   }
 
   const handleRefresh = async () => {
     setSyncing(true)
     try {
-      let activeUser = user
-
-      // Garante sessão ativa e renova se necessário
       const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        activeUser = session.user
-      } else {
-        const { data: autoLogin } = await supabase.auth.signInWithPassword({
-          email: 'jsnevesme@gmail.com',
-          password: 'Admin123456!'
-        })
-        if (autoLogin?.user) {
-          activeUser = autoLogin.user
-          setUser(autoLogin.user)
-        }
-      }
+      const activeUser = session?.user || user
 
       if (activeUser) {
-        // Pega auth e metadata mais atualizados
         const { data: freshUser } = await supabase.auth.getUser()
         const userToUse = freshUser?.user || activeUser
         setUser(userToUse)
@@ -472,8 +453,9 @@ export default function App() {
   if (viewMode === 'landing') {
     return (
       <div className="min-h-screen w-full bg-[#FAFAF9] text-stone-900 transition-colors">
-        {!user && authModalOpen && (
+        {authModalOpen && (
           <AuthModal
+            initialMode={authModalMode}
             onClose={() => setAuthModalOpen(false)}
             onAuthSuccess={async (u) => {
               setUser(u)
@@ -485,16 +467,20 @@ export default function App() {
         )}
 
         <LandingPageView
-          onGoToDashboard={() => handleSetViewMode('dashboard')}
-          onOpenAuth={() => {
+          user={user}
+          onLogout={handleLogout}
+          onGoToDashboard={() => {
             if (user) {
               handleSetViewMode('dashboard')
             } else {
+              setAuthModalMode('login')
               setAuthModalOpen(true)
             }
           }}
-          darkMode={darkMode}
-          onToggleDarkMode={() => setDarkMode((prev) => !prev)}
+          onOpenAuth={(mode = 'login') => {
+            setAuthModalMode(mode)
+            setAuthModalOpen(true)
+          }}
         />
       </div>
     )
@@ -504,6 +490,8 @@ export default function App() {
     <div className="h-screen w-screen overflow-hidden bg-gradient-to-br from-[#EAEFF5] via-[#F2F5F8] to-[#E5EBF2] dark:from-[#06090E] dark:via-[#090D15] dark:to-[#05070B] p-2 sm:p-3 md:p-4 flex items-center justify-center font-sans text-slate-900 dark:text-slate-100 transition-colors">
       {!user && (
         <AuthModal
+          initialMode="login"
+          onClose={() => handleSetViewMode('landing')}
           onAuthSuccess={async (u) => {
             setUser(u)
             await fetchAllUserData(u)
@@ -541,6 +529,7 @@ export default function App() {
             syncing={syncing}
             profile={profile}
             user={user}
+            onLogout={handleLogout}
             isSuperAdmin={isSuperAdmin}
             onOpenNewSale={() => {
               setPrefilledProduct(null)
