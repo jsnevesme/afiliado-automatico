@@ -111,23 +111,7 @@ export default function LandingPageView({
 
   return (
     <div className="min-h-screen bg-[#FAFAF9] text-stone-900 font-sans selection:bg-blue-600 selection:text-white">
-      {/* 1. ANNOUNCEMENT TOP BAR */}
-      <div className="bg-stone-900 text-white text-xs py-2 px-4">
-        <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-center gap-2 text-center">
-          <span className="text-stone-300">
-            Experimente o Afiliado Automático gratuitamente por 3 dias sem cartão de crédito.
-          </span>
-          <button
-            type="button"
-            onClick={() => onOpenAuth('register')}
-            className="inline-flex items-center gap-1 font-bold text-blue-400 hover:text-blue-300 underline underline-offset-2 ml-1 cursor-pointer"
-          >
-            Começar Agora <ArrowRight className="h-3 w-3" />
-          </button>
-        </div>
-      </div>
-
-      {/* 2. FLOATING WIREFRAME NAVBAR */}
+      {/* FLOATING WIREFRAME NAVBAR */}
       <header className="sticky top-0 z-50 backdrop-blur-md bg-white/85 dark:bg-[#0B0F17]/85 border-b border-stone-200/80 dark:border-slate-800/80 transition-colors">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           {/* Logo Oficial */}
