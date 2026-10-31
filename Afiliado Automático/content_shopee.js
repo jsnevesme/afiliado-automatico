@@ -193,28 +193,61 @@
       }
     }
 
-    // 4. Imagem Principal
+    // 4. Detecção de Mídia Robusta (Imagens e Vídeos Shopee)
     let imageUrl = '';
-    if (jsonLd && jsonLd.image) {
-      imageUrl = Array.isArray(jsonLd.image) ? jsonLd.image[0] : jsonLd.image;
+    let videoUrl = '';
+    let videoPoster = '';
+    let hasVideo = false;
+
+    // Detecta vídeo na página ou galeria
+    const shpVideo = document.querySelector('video, div[class*="video"] video, ._12-video video');
+    if (shpVideo) {
+      hasVideo = true;
+      videoUrl = shpVideo.src || shpVideo.querySelector('source')?.src || '';
+      videoPoster = shpVideo.getAttribute('poster') || shpVideo.poster || '';
+    } else if (document.querySelector('div[class*="video"], ._12-video, [class*="play-button"]')) {
+      hasVideo = true;
     }
+
+    // A. JSON-LD
+    if (jsonLd && jsonLd.image) {
+      const imgs = Array.isArray(jsonLd.image) ? jsonLd.image : [jsonLd.image];
+      imageUrl = imgs.find(u => u && typeof u === 'string' && u.startsWith('http') && !u.endsWith('.mp4') && !u.endsWith('.webm')) || '';
+    }
+
+    // B. Video poster
+    if (!imageUrl && videoPoster && videoPoster.startsWith('http')) {
+      imageUrl = videoPoster;
+    }
+
+    // C. Galeria e miniaturas
     if (!imageUrl) {
-      const imgEl = document.querySelector(
-        'picture img, div[style*="background-image"], ._2J7tDe img, img[class*="product-image"]'
-      );
-      if (imgEl) {
+      const shpImgs = Array.from(document.querySelectorAll(
+        'picture img, div[style*="background-image"], ._2J7tDe img, img[class*="product-image"], div[class*="gallery"] img, div[class*="product-briefing"] img'
+      ));
+      for (const imgEl of shpImgs) {
+        let u = '';
         if (imgEl.tagName === 'IMG' && imgEl.src && !imgEl.src.startsWith('data:')) {
-          imageUrl = imgEl.src;
+          u = imgEl.src;
         } else if (imgEl.style && imgEl.style.backgroundImage) {
           const bgM = imgEl.style.backgroundImage.match(/url\(["']?([^"']+)["']?\)/);
-          if (bgM) imageUrl = bgM[1];
+          if (bgM) u = bgM[1];
+        }
+        if (u && u.startsWith('http') && !u.includes('logo') && !u.endsWith('.mp4') && !u.endsWith('.webm')) {
+          imageUrl = u;
+          break;
         }
       }
     }
+
+    // D. OpenGraph
     if (!imageUrl) {
       const ogImg = document.querySelector('meta[property="og:image"]');
-      if (ogImg && ogImg.content) imageUrl = ogImg.content;
+      if (ogImg && ogImg.content && ogImg.content.startsWith('http') && !ogImg.content.includes('logo') && !ogImg.content.endsWith('.mp4')) {
+        imageUrl = ogImg.content;
+      }
     }
+
 
     // 5. Avaliação e Reviews
     let rating = 0;
@@ -297,7 +330,10 @@
       rawOriginalPrice,
       discount,
       discountPercent,
-      imageUrl,
+      imageUrl: imageUrl || videoPoster || '',
+      hasVideo: !!hasVideo,
+      videoUrl: videoUrl || '',
+      videoPoster: videoPoster || '',
       url: cleanUrl,
       pageUrl: window.location.href.split('?')[0].split('#')[0],
       affiliateShortLink,

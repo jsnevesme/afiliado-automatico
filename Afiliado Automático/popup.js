@@ -2518,8 +2518,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (discountPercent > 0) discount = `${discountPercent}% OFF`;
       }
 
-      // Imagem
+      // Mídia Robusta Amazon (detecta vídeo e imagens)
       let imageUrl = '';
+      let videoUrl = '';
+      let hasVideo = false;
+      const amzVideo = document.querySelector('#vse-video-container video, .vse-player video, video, #video-player-container video');
+      if (amzVideo) {
+        hasVideo = true;
+        videoUrl = amzVideo.src || amzVideo.querySelector('source')?.src || '';
+      } else if (document.querySelector('#vse-video-container, .vse-player, #video-player-container')) {
+        hasVideo = true;
+      }
+
       const imgEl = document.querySelector('#landingImage, #imgBlkFront, #main-image');
       if (imgEl) {
         const hires = imgEl.getAttribute('data-old-hires');
@@ -2536,6 +2546,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (!imageUrl && imgEl.src && !imgEl.src.startsWith('data:')) imageUrl = imgEl.src;
       }
+
+      // Se a imagem principal não estiver visível (ex: vídeo ativo), busca nas miniaturas
+      if (!imageUrl) {
+        const altImgs = Array.from(document.querySelectorAll('#altImages ul li img, #imageBlockThumbs img'));
+        for (const aImg of altImgs) {
+          const src = aImg.src || aImg.getAttribute('data-src') || '';
+          if (src && src.startsWith('http') && !src.includes('play-icon') && !src.includes('video') && !src.endsWith('.mp4')) {
+            imageUrl = src.replace(/\._[A-Z0-9_,]+_\.jpg$/i, '._AC_SL1500_.jpg');
+            break;
+          }
+        }
+      }
+
       if (!imageUrl) {
         const ogImg = document.querySelector('meta[property="og:image"]');
         if (ogImg && ogImg.content) imageUrl = ogImg.content;
@@ -2562,7 +2585,9 @@ document.addEventListener('DOMContentLoaded', () => {
         rawOriginalPrice,
         discount,
         discountPercent,
-        imageUrl,
+        imageUrl: imageUrl || '',
+        hasVideo,
+        videoUrl,
         url: cleanUrl,
         asin,
         rating,
@@ -2594,12 +2619,62 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
+      // Mídia Robusta Shopee
       let imageUrl = '';
-      const imgEl = document.querySelector('div[class*="gallery"] img, div[class*="product-briefing"] img, img[class*="pointer"]');
-      if (imgEl && imgEl.src) imageUrl = imgEl.src;
+      let videoUrl = '';
+      let videoPoster = '';
+      let hasVideo = false;
+
+      const shpVideo = document.querySelector('video, div[class*="video"] video, ._12-video video');
+      if (shpVideo) {
+        hasVideo = true;
+        videoUrl = shpVideo.src || shpVideo.querySelector('source')?.src || '';
+        videoPoster = shpVideo.getAttribute('poster') || shpVideo.poster || '';
+      } else if (document.querySelector('div[class*="video"], ._12-video, [class*="play-button"]')) {
+        hasVideo = true;
+      }
+
+      // JSON-LD
+      try {
+        const jsonLds = document.querySelectorAll('script[type="application/ld+json"]');
+        for (const s of jsonLds) {
+          const data = JSON.parse(s.textContent);
+          const items = Array.isArray(data) ? data : [data];
+          for (const item of items) {
+            if (item['@type'] === 'Product' && item.image) {
+              const imgs = Array.isArray(item.image) ? item.image : [item.image];
+              imageUrl = imgs.find(u => u && typeof u === 'string' && u.startsWith('http') && !u.endsWith('.mp4')) || '';
+              if (imageUrl) break;
+            }
+          }
+          if (imageUrl) break;
+        }
+      } catch (e) {}
+
+      if (!imageUrl && videoPoster && videoPoster.startsWith('http')) imageUrl = videoPoster;
+
+      if (!imageUrl) {
+        const shpImgs = Array.from(document.querySelectorAll('picture img, div[style*="background-image"], ._2J7tDe img, img[class*="product-image"], div[class*="gallery"] img, div[class*="product-briefing"] img'));
+        for (const imgEl of shpImgs) {
+          let u = '';
+          if (imgEl.tagName === 'IMG' && imgEl.src && !imgEl.src.startsWith('data:')) {
+            u = imgEl.src;
+          } else if (imgEl.style && imgEl.style.backgroundImage) {
+            const bgM = imgEl.style.backgroundImage.match(/url\(["']?([^"']+)["']?\)/);
+            if (bgM) u = bgM[1];
+          }
+          if (u && u.startsWith('http') && !u.includes('logo') && !u.endsWith('.mp4')) {
+            imageUrl = u;
+            break;
+          }
+        }
+      }
+
       if (!imageUrl) {
         const ogImg = document.querySelector('meta[property="og:image"]');
-        if (ogImg && ogImg.content) imageUrl = ogImg.content;
+        if (ogImg && ogImg.content && ogImg.content.startsWith('http') && !ogImg.content.includes('logo') && !ogImg.content.endsWith('.mp4')) {
+          imageUrl = ogImg.content;
+        }
       }
 
       const m = url.match(/-i\.(\d+)\.(\d+)/) || url.match(/\/product\/(\d+)\/(\d+)/);
@@ -2610,7 +2685,10 @@ document.addEventListener('DOMContentLoaded', () => {
         title,
         price,
         rawPrice,
-        imageUrl,
+        imageUrl: imageUrl || videoPoster || '',
+        hasVideo,
+        videoUrl,
+        videoPoster,
         url: cleanUrl,
         pageUrl: url.split('?')[0].split('#')[0],
         platform: 'shopee',
@@ -2638,9 +2716,95 @@ document.addEventListener('DOMContentLoaded', () => {
         price = `R$ ${priceFractionEl.textContent}${centsEl ? ',' + cents : ''}`;
       }
 
+      // Mídia Robusta Mercado Livre (resiliente a vídeos na 1ª posição da galeria)
       let imageUrl = '';
-      const imgEl = document.querySelector('img.ui-pdp-image, img.ui-pdp-gallery__figure__image');
-      if (imgEl && imgEl.src) imageUrl = imgEl.src;
+      let videoUrl = '';
+      let videoPoster = '';
+      let hasVideo = false;
+
+      // Detecta vídeo na galeria
+      const videoEl = document.querySelector('.ui-pdp-gallery video, .ui-pdp-video video, video, .andes-video-player video, [data-video] video');
+      if (videoEl) {
+        hasVideo = true;
+        videoUrl = videoEl.src || videoEl.querySelector('source')?.src || videoEl.getAttribute('data-src') || '';
+        videoPoster = videoEl.getAttribute('poster') || videoEl.poster || '';
+      } else if (document.querySelector('.ui-pdp-video, [class*="ui-pdp-video"], [class*="pdp-video"], [data-video]')) {
+        hasVideo = true;
+        const iframeEl = document.querySelector('.ui-pdp-video iframe, [class*="ui-pdp-video"] iframe, iframe[src*="youtube"]');
+        if (iframeEl) videoUrl = iframeEl.src || '';
+      }
+
+      // Prioridade 1: Schema.org JSON-LD (catálogo oficial)
+      try {
+        const jsonLds = document.querySelectorAll('script[type="application/ld+json"]');
+        for (const s of jsonLds) {
+          const data = JSON.parse(s.textContent);
+          const items = Array.isArray(data) ? data : [data];
+          for (const item of items) {
+            if (item['@type'] === 'Product' && item.image) {
+              const imgs = Array.isArray(item.image) ? item.image : [item.image];
+              for (const imgCandidate of imgs) {
+                if (typeof imgCandidate === 'string' && imgCandidate.startsWith('http') && 
+                    !imgCandidate.includes('logo_') && !imgCandidate.endsWith('.mp4') && !imgCandidate.endsWith('.webm')) {
+                  imageUrl = imgCandidate.trim();
+                  break;
+                }
+              }
+            }
+            if (imageUrl) break;
+          }
+          if (imageUrl) break;
+        }
+      } catch (e) {}
+
+      // Prioridade 2: Video poster
+      if (!imageUrl && videoPoster && videoPoster.startsWith('http') && !videoPoster.includes('logo_') && !videoPoster.startsWith('data:')) {
+        imageUrl = videoPoster.trim();
+      }
+
+      // Prioridade 3: Galeria do Mercado Livre (todas as fotos e miniaturas)
+      if (!imageUrl) {
+        const galleryImgs = Array.from(document.querySelectorAll(
+          '.ui-pdp-gallery__figure img, img.ui-pdp-image, .ui-pdp-gallery img, [class*="gallery"] img, .ui-pdp-gallery__column img, .andes-carousel-snapped__slide img, span.ui-pdp-gallery__wrapper img, span.andes-thumbnail img'
+        ));
+        
+        for (const gImg of galleryImgs) {
+          const zoom = gImg.getAttribute('data-zoom') || '';
+          const dataSrc = gImg.getAttribute('data-src') || '';
+          const hires = gImg.getAttribute('data-old-hires') || '';
+          const src = gImg.src || '';
+          
+          const candidate = [zoom, dataSrc, hires, src].find(u => {
+            if (!u || typeof u !== 'string') return false;
+            if (!u.startsWith('http') || u.startsWith('data:')) return false;
+            if (u.includes('play-button') || u.includes('play.svg') || u.includes('icon-') || u.includes('logo_') || u.includes('ui-navigation')) return false;
+            if (u.endsWith('.mp4') || u.endsWith('.webm')) return false;
+            return true;
+          });
+
+          if (candidate) {
+            // Converte miniatura do ML (-I.webp, -R.webp, etc.) para Original (-O.webp)
+            imageUrl = candidate.trim().replace(/-[A-Z]\.(webp|jpg|jpeg|png)$/i, '-O.$1');
+            break;
+          }
+        }
+      }
+
+      // Prioridade 4: Metatags OpenGraph e Twitter
+      if (!imageUrl) {
+        const ogImg = document.querySelector('meta[property="og:image"]');
+        if (ogImg && ogImg.content && ogImg.content.startsWith('http') && !ogImg.content.startsWith('data:') && 
+            !ogImg.content.includes('logo_') && !ogImg.content.includes('ui-navigation') && !ogImg.content.endsWith('.mp4')) {
+          imageUrl = ogImg.content.trim();
+        }
+      }
+      if (!imageUrl) {
+        const twImg = document.querySelector('meta[name="twitter:image"]');
+        if (twImg && twImg.content && twImg.content.startsWith('http') && !twImg.content.startsWith('data:') && 
+            !twImg.content.includes('logo_') && !twImg.content.includes('ui-navigation')) {
+          imageUrl = twImg.content.trim();
+        }
+      }
 
       // Comissão nativa ML
       let extractedCommissionRate = undefined;
@@ -2661,7 +2825,10 @@ document.addEventListener('DOMContentLoaded', () => {
         title,
         price,
         rawPrice,
-        imageUrl,
+        imageUrl: imageUrl || videoPoster || '',
+        hasVideo,
+        videoUrl,
+        videoPoster,
         url: url.split('?')[0].split('#')[0],
         extractedCommissionRate,
         commissionPercent,
@@ -2706,8 +2873,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     currentProductPrice.textContent = product.price;
-    currentProductImg.src = product.imageUrl || 'icons/icon128.png';
-    currentProductImg.onerror = () => { currentProductImg.src = 'icons/icon128.png'; };
+    currentProductImg.src = product.imageUrl || product.videoPoster || 'icons/icon128.png';
+    currentProductImg.onerror = () => { 
+      if (product.videoPoster && currentProductImg.src !== product.videoPoster) {
+        currentProductImg.src = product.videoPoster;
+      } else {
+        currentProductImg.src = 'icons/icon128.png'; 
+      }
+    };
+
+    // Badge de Vídeo se o produto possui mídia de vídeo
+    const vidBadge = document.getElementById('currentProductVideoBadge');
+    if (vidBadge) {
+      if (product.hasVideo || product.videoUrl) {
+        vidBadge.style.display = 'flex';
+      } else {
+        vidBadge.style.display = 'none';
+      }
+    }
 
     if (product.discount) {
       currentProductDiscount.textContent = product.discount;

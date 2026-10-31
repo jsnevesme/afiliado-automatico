@@ -153,7 +153,47 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true;
   }
+
+  // 8. DOWNLOAD DE IMAGEM PARA BASE64 (BYPASS CORS PARA DISPARO WHATSAPP)
+  if (message.action === 'fetch_image_as_base64') {
+    handleFetchImageAsBase64(message.url)
+      .then(res => sendResponse({ success: true, ...res }))
+      .catch(err => {
+        console.warn('[Afiliado ML] Erro ao converter imagem para base64:', err.message);
+        sendResponse({ success: false, error: err.message });
+      });
+    return true;
+  }
 });
+
+/**
+ * Baixa qualquer imagem dos marketplaces (Mercado Livre, Amazon, Shopee) e converte em base64 DataURL
+ * permitindo injeção direta de mídia sem restrições de CORS
+ */
+async function handleFetchImageAsBase64(imageUrl) {
+  if (!imageUrl || typeof imageUrl !== 'string' || !imageUrl.startsWith('http')) {
+    throw new Error('URL de imagem inválida.');
+  }
+  const response = await fetch(imageUrl);
+  if (!response.ok) {
+    throw new Error(`Falha ao baixar imagem: HTTP ${response.status}`);
+  }
+  const blob = await response.blob();
+  const buffer = await blob.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  const base64 = btoa(binary);
+  const mimeType = blob.type || 'image/jpeg';
+  return {
+    dataUrl: `data:${mimeType};base64,${base64}`,
+    mimeType
+  };
+}
+
 
 // =============================================================================
 // INTEGRAÇÃO COM IA GROQ (LLAMA / GPT-OSS / QWEN)

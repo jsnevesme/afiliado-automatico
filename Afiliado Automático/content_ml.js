@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Afiliado Mercado Livre - Content Script para páginas do Mercado Livre
  * 1. Fornece extração robusta do produto aberto (PDP) e resultados de busca.
  * 2. Injeta botão flutuante "⚡ Disparar Oferta WhatsApp" diretamente nas páginas de produtos.
@@ -346,59 +346,97 @@
       rawOriginalPrice = 0;
     }
 
-    // 3. Imagem (Prevenção de 1x1 transparent data: GIF lazy-loading)
+    // 3. Detecção de Mídia Robusta (Imagens e Vídeos - Resiliente a produtos com vídeo como 1ª mídia)
     let imageUrl = '';
+    let videoUrl = '';
+    let videoPoster = '';
+    let hasVideo = false;
 
-    // Prioridade 1: Metatags OpenGraph e Twitter (sempre contêm a foto oficial em alta resolução no ML)
-    const ogImg = document.querySelector('meta[property="og:image"]');
-    if (ogImg && ogImg.content && ogImg.content.startsWith('http') && !ogImg.content.startsWith('data:')) {
-      imageUrl = ogImg.content.trim();
-    }
-    if (!imageUrl) {
-      const twImg = document.querySelector('meta[name="twitter:image"]');
-      if (twImg && twImg.content && twImg.content.startsWith('http') && !twImg.content.startsWith('data:')) {
-        imageUrl = twImg.content.trim();
-      }
-    }
-
-    // Prioridade 2: Elementos de galeria na página (extrai data-zoom ou data-src caso src seja placeholder data:image)
-    if (!imageUrl) {
-      const imgCandidates = Array.from(document.querySelectorAll(
-        '.ui-pdp-gallery__figure img, img.ui-pdp-image, .ui-pdp-gallery img, img[data-zoom], [class*="gallery"] img'
-      ));
-      for (const imgEl of imgCandidates) {
-        const zoom = imgEl.getAttribute('data-zoom') || '';
-        const dataSrc = imgEl.getAttribute('data-src') || '';
-        const src = imgEl.src || '';
-
-        const candidate = [zoom, dataSrc, src].find(u => u && typeof u === 'string' && u.startsWith('http') && !u.startsWith('data:'));
-        if (candidate) {
-          imageUrl = candidate.trim();
-          break;
-        }
-      }
+    // A. Detecta se a página ou galeria contém vídeo
+    const videoEl = document.querySelector('.ui-pdp-gallery video, .ui-pdp-video video, video, .andes-video-player video, [data-video] video');
+    if (videoEl) {
+      hasVideo = true;
+      videoUrl = videoEl.src || videoEl.querySelector('source')?.src || videoEl.getAttribute('data-src') || '';
+      videoPoster = videoEl.getAttribute('poster') || videoEl.poster || '';
+    } else if (document.querySelector('.ui-pdp-video, [class*="ui-pdp-video"], [class*="pdp-video"], [data-video]')) {
+      hasVideo = true;
+      const iframeEl = document.querySelector('.ui-pdp-video iframe, [class*="ui-pdp-video"] iframe, iframe[src*="youtube"]');
+      if (iframeEl) videoUrl = iframeEl.src || '';
     }
 
-    // Prioridade 3: Schema.org JSON-LD image
-    if (!imageUrl) {
-      try {
-        const jsonLds = document.querySelectorAll('script[type="application/ld+json"]');
-        for (const s of jsonLds) {
-          const data = JSON.parse(s.textContent);
-          const items = Array.isArray(data) ? data : [data];
-          for (const item of items) {
-            if (item['@type'] === 'Product' && item.image) {
-              const imgVal = Array.isArray(item.image) ? item.image[0] : item.image;
-              if (imgVal && typeof imgVal === 'string' && imgVal.startsWith('http')) {
-                imageUrl = imgVal.trim();
+    // B. Prioridade 1: Schema.org JSON-LD (Fotos oficiais do anúncio registradas no ML - Nunca falha!)
+    try {
+      const jsonLds = document.querySelectorAll('script[type="application/ld+json"]');
+      for (const s of jsonLds) {
+        const data = JSON.parse(s.textContent);
+        const items = Array.isArray(data) ? data : [data];
+        for (const item of items) {
+          if (item['@type'] === 'Product' && item.image) {
+            const imgs = Array.isArray(item.image) ? item.image : [item.image];
+            for (const imgCandidate of imgs) {
+              if (typeof imgCandidate === 'string' && imgCandidate.startsWith('http') && 
+                  !imgCandidate.includes('logo_') && !imgCandidate.endsWith('.mp4') && !imgCandidate.endsWith('.webm')) {
+                imageUrl = imgCandidate.trim();
                 break;
               }
             }
           }
           if (imageUrl) break;
         }
-      } catch (e) {}
+        if (imageUrl) break;
+      }
+    } catch (e) {}
+
+    // C. Prioridade 2: Video Poster do player de vídeo (se for foto real em alta resolução)
+    if (!imageUrl && videoPoster && videoPoster.startsWith('http') && !videoPoster.includes('logo_') && !videoPoster.startsWith('data:')) {
+      imageUrl = videoPoster.trim();
     }
+
+    // D. Prioridade 3: Galeria do Mercado Livre (Percorre todas as miniaturas e figuras)
+    // Se o 1º item for vídeo, localiza a primeira foto real subsequente na galeria
+    if (!imageUrl) {
+      const galleryImgs = Array.from(document.querySelectorAll(
+        '.ui-pdp-gallery__figure img, img.ui-pdp-image, .ui-pdp-gallery img, [class*="gallery"] img, .ui-pdp-gallery__column img, .andes-carousel-snapped__slide img, span.ui-pdp-gallery__wrapper img, span.andes-thumbnail img'
+      ));
+      
+      for (const gImg of galleryImgs) {
+        const zoom = gImg.getAttribute('data-zoom') || '';
+        const dataSrc = gImg.getAttribute('data-src') || '';
+        const hires = gImg.getAttribute('data-old-hires') || '';
+        const src = gImg.src || '';
+        
+        const candidate = [zoom, dataSrc, hires, src].find(u => {
+          if (!u || typeof u !== 'string') return false;
+          if (!u.startsWith('http') || u.startsWith('data:')) return false;
+          if (u.includes('play-button') || u.includes('play.svg') || u.includes('icon-') || u.includes('logo_') || u.includes('ui-navigation')) return false;
+          if (u.endsWith('.mp4') || u.endsWith('.webm')) return false;
+          return true;
+        });
+
+        if (candidate) {
+          // Converte miniatura do ML (-I.webp, -R.webp, -V.webp, etc.) para resolução máxima original (-O.webp)
+          imageUrl = candidate.trim().replace(/-[A-Z]\.(webp|jpg|jpeg|png)$/i, '-O.$1');
+          break;
+        }
+      }
+    }
+
+    // E. Prioridade 4: Metatags OpenGraph e Twitter (validando contra o logo padrão do Mercado Livre)
+    if (!imageUrl) {
+      const ogImg = document.querySelector('meta[property="og:image"]');
+      if (ogImg && ogImg.content && ogImg.content.startsWith('http') && !ogImg.content.startsWith('data:') && 
+          !ogImg.content.includes('logo_') && !ogImg.content.includes('ui-navigation') && !ogImg.content.endsWith('.mp4')) {
+        imageUrl = ogImg.content.trim();
+      }
+    }
+    if (!imageUrl) {
+      const twImg = document.querySelector('meta[name="twitter:image"]');
+      if (twImg && twImg.content && twImg.content.startsWith('http') && !twImg.content.startsWith('data:') && 
+          !twImg.content.includes('logo_') && !twImg.content.includes('ui-navigation')) {
+        imageUrl = twImg.content.trim();
+      }
+    }
+
 
     // 4. Desconto
     let discount = '';
@@ -533,7 +571,10 @@
       originalPrice,
       rawOriginalPrice,
       url: cleanUrl,
-      imageUrl: imageUrl || '',
+      imageUrl: imageUrl || videoPoster || '',
+      hasVideo: !!hasVideo,
+      videoUrl: videoUrl || '',
+      videoPoster: videoPoster || '',
       discount,
       discountPercent,
       rating,
@@ -1314,7 +1355,10 @@
         </div>
 
         <div class="ml-modal-product">
-          <img src="${product.imageUrl || ''}" class="ml-modal-img" alt="Produto" onerror="this.style.display='none'">
+          <div style="position:relative;display:inline-block;flex-shrink:0;">
+            <img src="${product.imageUrl || ''}" class="ml-modal-img" alt="Produto" onerror="this.style.display='none'">
+            ${product.hasVideo ? `<span style="position:absolute;bottom:4px;right:4px;background:rgba(15,23,42,0.85);color:#10b981;font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;display:flex;align-items:center;gap:3px;backdrop-filter:blur(4px);border:1px solid rgba(16,185,129,0.3);" title="Este produto possui vídeo">▶ Vídeo</span>` : ''}
+          </div>
           <div class="ml-modal-info">
             <div class="ml-modal-p-title">${escapeHtml(product.title)}</div>
             <div class="ml-modal-p-price">

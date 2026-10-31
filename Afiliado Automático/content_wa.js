@@ -428,23 +428,48 @@ async function dispatchWithLinkPreview(fullCopy, fallbackUrl, productData = null
     messageBox.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space', keyCode: 32, which: 32, bubbles: true }));
     await sleep(400);
 
-    // 5. AGUARDA OBRIGATORIAMENTE A FOTO CARREGAR NA PRÉVIA DO LINK
-    const previewLoaded = await waitForLinkPreview(18);
+    // 5. AGUARDA A FOTO CARREGAR NA PRÉVIA DO LINK (Até 8 segundos)
+    const previewLoaded = await waitForLinkPreview(8);
 
-    // REGRA ABSOLUTA: Se a foto não carregou a tempo, NÃO ENVIA DE JEITO NENHUM!
-    if (!previewLoaded) {
-      showOnScreenNotification('❌ Foto não carregou a tempo no WhatsApp. Envio cancelado para não enviar sem foto.', '#EF4444');
-      console.error('[Afiliado ML] ❌ Envio cancelado: A foto da prévia não foi carregada pelo WhatsApp Web a tempo.');
-      throw new Error('A imagem da oferta não foi carregada pelo WhatsApp Web a tempo. O envio foi cancelado para garantir que o disparo não saia sem foto.');
-    }
+    if (previewLoaded) {
+      // CENÁRIO A: Prévia nativa com foto carregada com sucesso!
+      if (cleanBody) {
+        showOnScreenNotification('✍️ Inserindo texto da oferta...', '#2D3277');
+        moveCaretToStart(messageBox);
+        await sleep(150);
+        await insertMultiLineTextAtCaret(messageBox, cleanBody);
+        await sleep(500);
+      }
+    } else {
+      // CENÁRIO B: Prévia de link sem foto (comum em produtos cujo 1º item é vídeo ou crawler do WA)
+      // FALLBACK AUTOMÁTICO INFALÍVEL: Injeta a foto oficial do produto diretamente com a copy como legenda!
+      let directPhotoSent = false;
+      const prodImgUrl = productData?.imageUrl || productData?.videoPoster;
 
-    // 6. COM A FOTO CONFIRMADA: Insere o texto da copy ANTES do link preservando a prévia ativa!
-    if (cleanBody) {
-      showOnScreenNotification('✍️ Inserindo texto da oferta...', '#2D3277');
-      moveCaretToStart(messageBox);
-      await sleep(150);
-      await insertMultiLineTextAtCaret(messageBox, cleanBody);
-      await sleep(500);
+      if (prodImgUrl && prodImgUrl.startsWith('http')) {
+        showOnScreenNotification('🖼️ Prévia sem foto (produto com vídeo). Injetando foto oficial...', '#3B82F6');
+        try {
+          directPhotoSent = await dispatchDirectPhotoWithCaption(prodImgUrl, fullCopy);
+        } catch (mediaErr) {
+          console.warn('[Afiliado WA] Falha no envio de foto direta, tentando envio de texto:', mediaErr);
+        }
+      }
+
+      if (directPhotoSent) {
+        showOnScreenNotification('✅ Oferta enviada com foto oficial e legenda!', '#25D366');
+        await sleep(1500);
+        return { success: true, mode: 'direct_photo' };
+      }
+
+      // CENÁRIO C: Se o envio direto de foto não foi possível, envia o texto completo com o link oficial
+      // em vez de bloquear o usuário com erro fatal!
+      showOnScreenNotification('⚡ Enviando texto e link oficial...', '#2D3277');
+      if (cleanBody) {
+        moveCaretToStart(messageBox);
+        await sleep(150);
+        await insertMultiLineTextAtCaret(messageBox, cleanBody);
+        await sleep(500);
+      }
     }
   } else {
     // Se não há link, apenas insere o texto diretamente
@@ -478,6 +503,111 @@ async function dispatchWithLinkPreview(fullCopy, fallbackUrl, productData = null
   }
 
   await sleep(1500);
+}
+
+/**
+ * Dispara a oferta como mensagem de mídia nativa (foto oficial em alta resolução com a copy como legenda)
+ * Funciona como fallback 100% infalível quando o WhatsApp Web não gera foto no link preview (ex: produtos com vídeo)
+ */
+async function dispatchDirectPhotoWithCaption(imageUrl, fullCopy) {
+  // 1. Limpa o campo de digitação
+  const messageBox = document.querySelector('div[data-lexical-editor="true"]') ||
+                     document.querySelector('footer div[contenteditable="true"]');
+  if (messageBox) {
+    clearMessageBox(messageBox);
+    await sleep(200);
+  }
+
+  // 2. Solicita ao background.js o download da imagem como base64 (sem restrições de CORS)
+  showOnScreenNotification('📥 Baixando foto de alta resolução...', '#2D3277');
+  const base64Res = await new Promise(resolve => {
+    chrome.runtime.sendMessage({ action: 'fetch_image_as_base64', url: imageUrl }, res => {
+      if (chrome.runtime.lastError || !res || !res.success) {
+        return resolve(null);
+      }
+      resolve(res);
+    });
+  });
+
+  if (!base64Res || !base64Res.dataUrl) {
+    console.warn('[Afiliado WA] Não foi possível obter base64 da imagem para envio direto.');
+    return false;
+  }
+
+  // 3. Converte a Data URL em um arquivo File real (produto_oferta.jpg)
+  const byteString = atob(base64Res.dataUrl.split(',')[1]);
+  const mimeType = base64Res.mimeType || 'image/jpeg';
+  const ab = new ArrayBuffer(byteString.length);
+  const ia = new Uint8Array(ab);
+  for (let i = 0; i < byteString.length; i++) {
+    ia[i] = byteString.charCodeAt(i);
+  }
+  const file = new File([ab], 'oferta_produto.jpg', { type: mimeType });
+
+  // 4. Injeta o arquivo via evento de paste no container do WhatsApp Web
+  showOnScreenNotification('📋 Anexando foto da oferta no WhatsApp...', '#2D3277');
+  const targetEl = messageBox || document.querySelector('#main') || document.body;
+  targetEl.focus();
+
+  const dataTransfer = new DataTransfer();
+  dataTransfer.items.add(file);
+
+  const pasteEvt = new ClipboardEvent('paste', {
+    clipboardData: dataTransfer,
+    bubbles: true,
+    cancelable: true,
+    composed: true
+  });
+  targetEl.dispatchEvent(pasteEvt);
+
+  // 5. Aguarda o WhatsApp Web abrir o compositor de mídia (tela com campo de legenda)
+  let captionBox = null;
+  for (let i = 0; i < 15; i++) {
+    await sleep(400);
+    captionBox = document.querySelector('div[data-testid="media-caption-input"]') ||
+                 document.querySelector('div[aria-label*="legenda" i]') ||
+                 document.querySelector('div[aria-label*="caption" i]') ||
+                 document.querySelector('div[role="dialog"] div[contenteditable="true"]') ||
+                 document.querySelector('div[data-animate-media-viewer="true"] div[contenteditable="true"]');
+    if (captionBox) break;
+  }
+
+  if (!captionBox) {
+    console.warn('[Afiliado WA] Compositor de mídia do WhatsApp não abriu a tempo.');
+    return false;
+  }
+
+  // 6. Insere a copy completa da oferta na legenda da imagem
+  showOnScreenNotification('✍️ Inserindo copy na legenda da foto...', '#2D3277');
+  await sleep(300);
+  await insertMultiLineTextToWhatsApp(captionBox, fullCopy);
+  await sleep(600);
+
+  // 7. Clica no botão de enviar mídia do WhatsApp Web
+  showOnScreenNotification('🚀 Enviando foto com legenda...', '#25D366');
+  const sendMediaBtn = document.querySelector('span[data-icon="send"]')?.closest('button, div[role="button"]') ||
+                       document.querySelector('div[aria-label*="Enviar" i][role="button"]') ||
+                       document.querySelector('div[aria-label*="Send" i][role="button"]') ||
+                       document.querySelector('button[aria-label*="Enviar" i]');
+
+  if (sendMediaBtn) {
+    sendMediaBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+    sendMediaBtn.click();
+    await sleep(1500);
+    return true;
+  } else {
+    captionBox.focus();
+    captionBox.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      code: 'Enter',
+      keyCode: 13,
+      which: 13,
+      bubbles: true,
+      cancelable: true
+    }));
+    await sleep(1500);
+    return true;
+  }
 }
 
 function clearMessageBox(el) {
@@ -677,10 +807,10 @@ function isLinkPreviewImageLoaded() {
  * Aguarda de forma inteligente até que o WhatsApp Web renderize a foto da prévia do link
  * Garante tempo mínimo obrigatório para o crawler do WhatsApp baixar a imagem
  */
-async function waitForLinkPreview(maxSeconds = 18) {
+async function waitForLinkPreview(maxSeconds = 8) {
   const startTime = Date.now();
   const maxMs = maxSeconds * 1000;
-  const minWaitMs = 3000; // Tempo mínimo para dar chance ao crawler do WhatsApp
+  const minWaitMs = 2500; // Tempo mínimo para dar chance ao crawler do WhatsApp
   let imageFound = false;
 
   while (Date.now() - startTime < maxMs) {

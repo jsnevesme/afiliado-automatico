@@ -1,4 +1,4 @@
-﻿/**
+/**
  * =============================================================================
  * AFILIADO AUTOMÁTICO - CONTENT SCRIPT: AMAZON BRASIL
  * =============================================================================
@@ -176,8 +176,20 @@
       }
     }
 
-    // 4. Imagem Principal
+    // 4. Detecção de Mídia Robusta (Imagens e Vídeos Amazon)
     let imageUrl = '';
+    let videoUrl = '';
+    let hasVideo = false;
+
+    // Detecta vídeo na página ou galeria
+    const amzVideo = document.querySelector('#vse-video-container video, .vse-player video, video, #video-player-container video');
+    if (amzVideo) {
+      hasVideo = true;
+      videoUrl = amzVideo.src || amzVideo.querySelector('source')?.src || '';
+    } else if (document.querySelector('#vse-video-container, .vse-player, #video-player-container, [id*="video"]')) {
+      hasVideo = true;
+    }
+
     const imgEl = document.querySelector('#landingImage, #imgBlkFront, #main-image');
     if (imgEl) {
       // Prioridade 1: data-old-hires
@@ -208,10 +220,26 @@
         imageUrl = imgEl.src;
       }
     }
+
+    // Prioridade 4: Miniaturas de galeria (quando o 1º item ativo é um vídeo!)
+    if (!imageUrl) {
+      const altImgs = Array.from(document.querySelectorAll('#altImages ul li img, #imageBlockThumbs img, .imageThumbnail img'));
+      for (const aImg of altImgs) {
+        const src = aImg.src || aImg.getAttribute('data-src') || '';
+        if (src && src.startsWith('http') && !src.includes('play-icon') && !src.includes('video') && !src.endsWith('.mp4')) {
+          // Converte miniatura da Amazon para tamanho original 1500px
+          imageUrl = src.replace(/\._[A-Z0-9_,]+_\.jpg$/i, '._AC_SL1500_.jpg');
+          break;
+        }
+      }
+    }
+
+    // Prioridade 5: OpenGraph
     if (!imageUrl) {
       const ogImg = document.querySelector('meta[property="og:image"]');
-      if (ogImg && ogImg.content) imageUrl = ogImg.content;
+      if (ogImg && ogImg.content && ogImg.content.startsWith('http')) imageUrl = ogImg.content;
     }
+
 
     // 5. Avaliação e Reviews
     let rating = 0;
@@ -260,7 +288,9 @@
       rawOriginalPrice,
       discount,
       discountPercent,
-      imageUrl,
+      imageUrl: imageUrl || '',
+      hasVideo: !!hasVideo,
+      videoUrl: videoUrl || '',
       url: cleanUrl,
       affiliateShortLink,
       asin,
