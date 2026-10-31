@@ -411,56 +411,39 @@ async function dispatchWithLinkPreview(fullCopy, fallbackUrl, productData = null
     ? `${textWithoutUrl}\n\n👉 *Compre no link oficial:*\n`
     : textWithoutUrl;
 
-  // 4. Determina a URL ideal para acionar o preview nativo com FOTO no WhatsApp Web
-  const prodImgUrl = productData?.imageUrl || productData?.image || productData?.videoPoster || '';
-  const isShopee = targetUrl.includes('shopee') || productData?.platform === 'shopee';
-  const hasVideo = !!(productData?.hasVideo || productData?.videoUrl);
-
-  // Se o produto tiver vídeo OU se for Shopee (cujos shortlinks s.shopee.com.br bloqueiam og:image no WhatsApp):
-  // Usamos a nossa Edge Function https://pbatxljxcnkogcqfhomc.supabase.co/functions/v1/preview
-  // que entrega os metadados OpenGraph com a foto oficial em alta resolução e redireciona 100% dos cliques para o link de afiliado oficial.
-  let previewTriggerUrl = targetUrl;
-  if (!targetUrl.includes('supabase.co') && prodImgUrl && prodImgUrl.startsWith('http') && (hasVideo || isShopee)) {
-    const pTitle = encodeURIComponent(productData?.title || 'Oferta Imperdível');
-    const pPrice = encodeURIComponent(productData?.price || '');
-    const pImg = encodeURIComponent(prodImgUrl);
-    const pTarget = encodeURIComponent(targetUrl);
-    previewTriggerUrl = `https://pbatxljxcnkogcqfhomc.supabase.co/functions/v1/preview?url=${pTarget}&img=${pImg}&title=${pTitle}&price=${pPrice}`;
-  }
-
   if (targetUrl) {
-    // 5. DIGITA A URL DE PREVIEW NO CAMPO VAZIO
-    // No WhatsApp Web, digitar a URL no campo vazio aciona imediatamente o gerador de Link Preview com a foto
-    showOnScreenNotification('🔗 Carregando prévia e foto do produto...', '#2D3277');
+    // 4. DIGITA O LINK OFICIAL PRIMEIRO NO CAMPO VAZIO
+    // No WhatsApp Web, digitar a URL oficial no campo vazio aciona imediatamente o gerador de Link Preview nativo
+    showOnScreenNotification('🔗 Carregando prévia e foto do link oficial...', '#2D3277');
     messageBox.focus();
 
-    // Insere a URL de preview usando execCommand
-    document.execCommand('insertText', false, previewTriggerUrl);
+    // Insere o link curto oficial (s.shopee.com.br, meli.la, etc)
+    document.execCommand('insertText', false, targetUrl);
     await sleep(200);
 
-    // Digita espaço delimitador que aciona o crawler do WhatsApp Web
+    // Digita espaço delimitador que aciona o crawler nativo do WhatsApp Web
     document.execCommand('insertText', false, ' ');
     messageBox.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ' ' }));
     messageBox.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space', keyCode: 32, which: 32, bubbles: true }));
     messageBox.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space', keyCode: 32, which: 32, bubbles: true }));
     await sleep(400);
 
-    // 6. AGUARDA A FOTO REAL CARREGAR NA PRÉVIA DO LINK (Até 9 segundos)
-    const previewLoaded = await waitForLinkPreview(9);
+    // 5. AGUARDA A FOTO REAL CARREGAR NA PRÉVIA DO LINK (Até 14 segundos)
+    const previewLoaded = await waitForLinkPreview(14);
 
     if (previewLoaded) {
-      showOnScreenNotification('✍️ Inserindo texto da oferta...', '#2D3277');
-      // Mantém a URL que gerou o card da foto para garantir que o WhatsApp nunca cancele a foto da prévia!
-      // Se um usuário clicar no card ou no link, é redirecionado instantaneamente (302) para o link oficial de afiliado
-      const finalLinkInMessage = previewTriggerUrl;
-      await selectAllAndInsert(messageBox, `${textWithoutUrl}\n\n👉 *Compre no link oficial:*\n${finalLinkInMessage}`);
+      showOnScreenNotification('🖼️ Foto da prévia carregada com sucesso!', '#25D366');
     } else {
-      if (cleanBody) {
-        moveCaretToStart(messageBox);
-        await sleep(150);
-        await insertMultiLineTextAtCaret(messageBox, cleanBody);
-        await sleep(500);
-      }
+      console.warn('[Afiliado WA] Tempo de espera da prévia encerrado, montando mensagem...');
+    }
+
+    // 6. Insere o corpo da copy ANTES do link oficial preservando o card de foto da prévia ativo!
+    if (cleanBody) {
+      showOnScreenNotification('✍️ Inserindo texto da oferta...', '#2D3277');
+      moveCaretToStart(messageBox);
+      await sleep(150);
+      await insertMultiLineTextAtCaret(messageBox, cleanBody);
+      await sleep(500);
     }
   } else {
     // Se não há link, apenas insere o texto diretamente
@@ -747,8 +730,13 @@ function isLinkPreviewImageLoaded() {
     '[data-animate-link-preview="true"]',
     '[data-testid="link-preview-container"]',
     '[data-testid="link-preview"]',
+    '[data-testid="link-preview-thumbnail"]',
+    '[data-testid="conversation-compose-box-link-preview"]',
     'div[class*="link-preview"]',
-    'div[class*="rich-text-preview"]'
+    'div[class*="rich-text-preview"]',
+    'footer div[role="region"]',
+    'div[aria-label*="prévia" i]',
+    'div[aria-label*="preview" i]'
   ];
 
   const containers = [];
@@ -797,7 +785,7 @@ function isLinkPreviewImageLoaded() {
 
       const w = img.naturalWidth || img.clientWidth || img.offsetWidth || 0;
       const h = img.naturalHeight || img.clientHeight || img.offsetHeight || 0;
-      if (w >= 45 && h >= 45) {
+      if (w >= 30 && h >= 30) {
         return true;
       }
       if (img.complete && (src.startsWith('blob:') || src.includes('mlstatic') || src.includes('susercontent') || src.includes('media-amazon'))) {
@@ -810,7 +798,7 @@ function isLinkPreviewImageLoaded() {
     for (const cv of canvases) {
       const w = cv.width || cv.clientWidth || cv.offsetWidth || 0;
       const h = cv.height || cv.clientHeight || cv.offsetHeight || 0;
-      if (w >= 45 && h >= 45) {
+      if (w >= 30 && h >= 30) {
         return true;
       }
     }
@@ -822,7 +810,7 @@ function isLinkPreviewImageLoaded() {
       if (bgStyle.includes('url(') && !bgStyle.includes('svg') && !bgStyle.includes('favicon')) {
         const w = bg.clientWidth || bg.offsetWidth || 0;
         const h = bg.clientHeight || bg.offsetHeight || 0;
-        if (w >= 45 || h >= 45 || bgStyle.includes('susercontent') || bgStyle.includes('mlstatic') || bgStyle.includes('media-amazon')) {
+        if (w >= 30 || h >= 30 || bgStyle.includes('susercontent') || bgStyle.includes('mlstatic') || bgStyle.includes('media-amazon')) {
           return true;
         }
       }
@@ -836,10 +824,10 @@ function isLinkPreviewImageLoaded() {
  * Aguarda de forma inteligente até que o WhatsApp Web renderize a foto da prévia do link
  * Garante tempo mínimo obrigatório para o crawler do WhatsApp baixar a imagem
  */
-async function waitForLinkPreview(maxSeconds = 8) {
+async function waitForLinkPreview(maxSeconds = 14) {
   const startTime = Date.now();
   const maxMs = maxSeconds * 1000;
-  const minWaitMs = 2500; // Tempo mínimo para dar chance ao crawler do WhatsApp
+  const minWaitMs = 1500; // Tempo mínimo para dar chance ao crawler do WhatsApp
   let imageFound = false;
 
   while (Date.now() - startTime < maxMs) {
