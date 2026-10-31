@@ -114,18 +114,15 @@ export default function LandingPageView({
       {/* 1. ANNOUNCEMENT TOP BAR */}
       <div className="bg-stone-900 text-white text-xs py-2 px-4">
         <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-center gap-2 text-center">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-600 text-[10px] font-extrabold uppercase tracking-wider">
-            3 DIAS GRÁTIS
-          </span>
-          <span className="text-stone-200">
-            Cadastre-se hoje e ganhe <strong className="text-white">3 dias de teste grátis</strong> no Plano Starter sem cartão de crédito!
+          <span className="text-stone-300">
+            Experimente o Afiliado Automático gratuitamente por 3 dias sem cartão de crédito.
           </span>
           <button
             type="button"
             onClick={() => onOpenAuth('register')}
             className="inline-flex items-center gap-1 font-bold text-blue-400 hover:text-blue-300 underline underline-offset-2 ml-1 cursor-pointer"
           >
-            Começar Grátis <ArrowRight className="h-3 w-3" />
+            Começar Agora <ArrowRight className="h-3 w-3" />
           </button>
         </div>
       </div>
@@ -199,12 +196,10 @@ export default function LandingPageView({
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none" />
 
         <div className="relative max-w-5xl mx-auto px-4 sm:px-6 text-center space-y-6">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 shadow-2xs">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-extrabold uppercase tracking-wider text-[11px]">3 DIAS DE TESTE GRÁTIS</span>
-            <span className="text-emerald-300">•</span>
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-stone-100 border border-stone-200 text-xs font-bold text-stone-800 shadow-2xs">
             <ChromeLogo className="h-4 w-4" />
-            <span>Extensão Chrome com IA Integrada</span>
+            <span>Extensão Oficial Chrome com IA Integrada</span>
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
           </div>
 
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-stone-900 leading-[1.12]">
@@ -238,7 +233,7 @@ export default function LandingPageView({
                 onClick={() => onOpenAuth('register')}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-sm shadow-xl shadow-blue-500/25 transition-all transform hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
               >
-                <span>Começar 3 Dias de Teste Grátis</span>
+                <span>Experimentar Grátis</span>
                 <ArrowRight className="h-4 w-4" />
               </button>
             )}
@@ -253,8 +248,8 @@ export default function LandingPageView({
             </a>
           </div>
 
-          <p className="text-xs text-stone-600 font-medium pt-1">
-            🎉 <strong className="text-stone-900">3 dias de teste grátis no Plano Starter</strong> • Sem cartão de crédito • Acesso imediato
+          <p className="text-xs text-stone-500 font-medium pt-1">
+            Acesso imediato ao Plano Starter • 3 dias grátis sem cartão de crédito
           </p>
 
           <div className="pt-4 flex flex-wrap items-center justify-center gap-3 text-xs text-stone-500 dark:text-slate-400">

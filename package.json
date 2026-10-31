@@ -2,6 +2,7 @@
   "name": "afiliado-automatico",
   "version": "2.1.0",
   "private": true,
+  "type": "module",
   "description": "Plataforma e Extensão Chrome de Automação de Ofertas de Afiliados para WhatsApp",
   "scripts": {
     "build": "cd dashboard && npm install && npm run build",

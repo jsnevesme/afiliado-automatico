@@ -299,3 +299,142 @@ CREATE POLICY "Superadmin pode ver todos os perfis"
       WHERE p.id = auth.uid() AND (p.role = 'superadmin' OR lower(p.email) = 'jsnevesme@gmail.com')
     )
   );
+
+-- Políticas de RLS para Cakto Purchases
+DROP POLICY IF EXISTS "Superadmin pode gerenciar cakto_purchases" ON public.cakto_purchases;
+CREATE POLICY "Superadmin pode gerenciar cakto_purchases"
+  ON public.cakto_purchases FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles p
+      WHERE p.id = auth.uid() AND (p.role = 'superadmin' OR lower(p.email) = 'jsnevesme@gmail.com')
+    )
+  );
+
+DROP POLICY IF EXISTS "Permitir insercao de compras cakto" ON public.cakto_purchases;
+CREATE POLICY "Permitir insercao de compras cakto"
+  ON public.cakto_purchases FOR INSERT
+  WITH CHECK (true);
+
+-- Função RPC transacional para processar webhook da Cakto com privilégios elevados
+CREATE OR REPLACE FUNCTION public.handle_cakto_purchase(
+  p_customer_email text,
+  p_plan text,
+  p_period text,
+  p_order_id text DEFAULT NULL,
+  p_customer_name text DEFAULT NULL,
+  p_customer_phone text DEFAULT NULL,
+  p_customer_doc text DEFAULT NULL,
+  p_checkout_id text DEFAULT NULL,
+  p_checkout_url text DEFAULT NULL,
+  p_amount numeric DEFAULT NULL,
+  p_payment_method text DEFAULT NULL,
+  p_raw_payload jsonb DEFAULT '{}'::jsonb
+)
+RETURNS jsonb AS $$
+DECLARE
+  v_user_id uuid;
+  v_expires timestamptz;
+  v_platform text := 'all';
+  v_clean_email text := lower(trim(p_customer_email));
+  v_is_superadmin boolean := false;
+BEGIN
+  IF v_clean_email IS NULL OR v_clean_email = '' THEN
+    RETURN jsonb_build_object('success', false, 'error', 'E-mail do cliente não fornecido.');
+  END IF;
+
+  -- 1. Registra a compra na tabela pública
+  INSERT INTO public.cakto_purchases (
+    order_id,
+    customer_name,
+    customer_email,
+    customer_phone,
+    customer_doc,
+    checkout_id,
+    checkout_url,
+    plan_identified,
+    plan_period,
+    amount,
+    payment_method,
+    status,
+    raw_payload
+  ) VALUES (
+    p_order_id,
+    p_customer_name,
+    v_clean_email,
+    p_customer_phone,
+    p_customer_doc,
+    p_checkout_id,
+    p_checkout_url,
+    p_plan,
+    p_period,
+    p_amount,
+    p_payment_method,
+    'paid',
+    p_raw_payload
+  );
+
+  -- 2. Localiza o perfil correspondente
+  SELECT id, (role = 'superadmin' OR lower(email) = 'jsnevesme@gmail.com')
+  INTO v_user_id, v_is_superadmin
+  FROM public.profiles
+  WHERE lower(email) = v_clean_email
+  LIMIT 1;
+
+  -- 3. Se usuário existir, atualiza o plano imediatamente
+  IF v_user_id IS NOT NULL THEN
+    IF p_period = 'yearly' THEN
+      v_expires := now() + interval '365 days';
+    ELSE
+      v_expires := now() + interval '30 days';
+    END IF;
+
+    IF p_plan = 'starter' THEN
+      v_platform := 'mercadolivre';
+    ELSE
+      v_platform := 'all';
+    END IF;
+
+    IF v_is_superadmin THEN
+      -- Mantém superadmin intocado
+      UPDATE public.profiles
+      SET plan = 'ultra',
+          plan_period = 'lifetime',
+          plan_status = 'active',
+          allowed_platform = 'all'
+      WHERE id = v_user_id;
+    ELSE
+      UPDATE public.profiles
+      SET plan = p_plan,
+          plan_period = p_period,
+          plan_status = 'active',
+          plan_expires_at = v_expires,
+          allowed_platform = v_platform
+      WHERE id = v_user_id;
+    END IF;
+
+    RETURN jsonb_build_object(
+      'success', true,
+      'user_found', true,
+      'user_id', v_user_id,
+      'email', v_clean_email,
+      'plan', p_plan,
+      'period', p_period,
+      'expires_at', v_expires,
+      'message', 'Perfil atualizado e plano ativado com sucesso!'
+    );
+  END IF;
+
+  -- Se o usuário ainda não tiver criado a conta, a compra foi registrada e será ativada no cadastro
+  RETURN jsonb_build_object(
+    'success', true,
+    'user_found', false,
+    'email', v_clean_email,
+    'plan', p_plan,
+    'period', p_period,
+    'message', 'Compra registrada na Cakto. O plano será ativado assim que o usuário concluir o cadastro.'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.handle_cakto_purchase TO anon, authenticated, service_role;
