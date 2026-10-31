@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0066FF"/>
+      <stop offset="100%" stop-color="#0052CC"/>
+    </linearGradient>
+    <linearGradient id="slateGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E293B"/>
+      <stop offset="100%" stop-color="#0F172A"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <!-- Clean Background -->
+  <rect width="128" height="128" rx="28" fill="#FFFFFF"/>
+  <rect width="124" height="124" x="2" y="2" rx="26" fill="none" stroke="#E2E8F0" stroke-width="2"/>
+
+  <!-- Infinity Loop with Growth Arrow (Afiliado Automático) -->
+  <g filter="url(#shadow)" transform="translate(10, 20)">
+    <!-- Dark slate loop path -->
+    <path d="M42 44 C34 44 26 38 26 28 C26 18 34 12 42 12 C52 12 60 22 66 30 C72 38 80 44 90 44 C98 44 104 38 104 28 C104 18 98 12 90 12" 
+          fill="none" stroke="url(#slateGrad)" stroke-width="9" stroke-linecap="round"/>
+    
+    <!-- Vibrant Blue loop path with arrow -->
+    <path d="M90 12 C98 12 104 18 104 28 C104 38 98 44 90 44 C80 44 72 38 66 30 C60 22 52 12 42 12 C34 12 26 18 26 28 C26 38 34 44 42 44 C50 44 58 36 64 28 L94 4" 
+          fill="none" stroke="url(#blueGrad)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    
+    <!-- Growth Arrow head -->
+    <polygon points="98,2 78,3 90,15" fill="#0066FF"/>
+  </g>
+</svg>

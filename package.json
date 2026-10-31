@@ -1,0 +1,22 @@
+{
+  "name": "afiliado-automatico",
+  "version": "2.1.0",
+  "private": true,
+  "description": "Plataforma e Extensão Chrome de Automação de Ofertas de Afiliados para WhatsApp",
+  "scripts": {
+    "build": "cd dashboard && npm install && npm run build",
+    "dev": "cd dashboard && npm run dev",
+    "preview": "cd dashboard && npm run preview"
+  },
+  "keywords": [
+    "afiliados",
+    "mercado-livre",
+    "shopee",
+    "amazon",
+    "whatsapp",
+    "chrome-extension",
+    "automation"
+  ],
+  "author": "jsnevesme",
+  "license": "UNLICENSED"
+}

@@ -1,0 +1,97 @@
+{
+  "manifest_version": 3,
+  "name": "Afiliado Automático - Disparo de Ofertas WhatsApp",
+  "version": "2.1.0",
+  "description": "Painel de Curadoria e Disparo em Massa de Ofertas Multiplataforma (Mercado Livre, Shopee, Amazon) com IA e links de afiliado oficiais para WhatsApp Web.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "tabs",
+    "storage",
+    "cookies",
+    "clipboardWrite",
+    "clipboardRead",
+    "alarms",
+    "notifications"
+  ],
+  "host_permissions": [
+    "*://*.mercadolivre.com.br/*",
+    "*://mercadolivre.com.br/*",
+    "*://lista.mercadolivre.com.br/*",
+    "*://*.mlstatic.com/*",
+    "*://http2.mlstatic.com/*",
+    "*://*.meli.la/*",
+    "*://*.amazon.com.br/*",
+    "*://amazon.com.br/*",
+    "*://*.amazon.com/*",
+    "*://amazon.com/*",
+    "*://*.amzn.to/*",
+    "*://amzn.to/*",
+    "*://*.link.amazon/*",
+    "*://link.amazon/*",
+    "*://*.shopee.com.br/*",
+    "*://shopee.com.br/*",
+    "*://s.shopee.com.br/*",
+    "*://tinyurl.com/*",
+    "*://is.gd/*",
+    "*://web.whatsapp.com/*",
+    "https://api.groq.com/*",
+    "https://pbatxljxcnkogcqfhomc.supabase.co/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Afiliado Automático",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.mercadolivre.com.br/*",
+        "*://mercadolivre.com.br/*",
+        "*://lista.mercadolivre.com.br/*"
+      ],
+      "js": ["commission.js", "content_ml.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://*.amazon.com.br/*",
+        "*://amazon.com.br/*",
+        "*://*.amazon.com/*",
+        "*://amazon.com/*"
+      ],
+      "js": ["commission.js", "content_amazon.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://*.shopee.com.br/*",
+        "*://shopee.com.br/*"
+      ],
+      "exclude_matches": [
+        "*://careers.shopee.com.br/*",
+        "*://help.shopee.com.br/*",
+        "*://seller.shopee.com.br/*"
+      ],
+      "js": ["commission.js", "content_shopee.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://web.whatsapp.com/*"],
+      "js": ["content_wa.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

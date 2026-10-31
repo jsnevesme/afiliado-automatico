@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Afiliado Automático — Automatize suas Ofertas no WhatsApp e Escale Comissões</title>
+    <meta name="description" content="A plataforma mais completa para afiliados Mercado Livre, Shopee e Amazon. Curadoria inteligente com IA, links oficiais encurtados com sua comissão (meli.la) e disparos automáticos anti-bloqueio no WhatsApp Web." />
+
+    <!-- Open Graph / Facebook / WhatsApp -->
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:site_name" content="Afiliado Automático" />
+    <meta property="og:title" content="Afiliado Automático — Automatize suas Ofertas no WhatsApp e Escale Comissões" />
+    <meta property="og:description" content="A plataforma mais completa para afiliados Mercado Livre, Shopee e Amazon. Curadoria inteligente com IA, links oficiais meli.la e disparos com proteção anti-bloqueio." />
+    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:image:secure_url" content="/og-image.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Afiliado Automático — Automação de Ofertas no WhatsApp" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Afiliado Automático — Automatize suas Ofertas no WhatsApp" />
+    <meta name="twitter:description" content="A plataforma mais completa para afiliados Mercado Livre, Shopee e Amazon. Curadoria inteligente com IA, links meli.la e disparos anti-bloqueio." />
+    <meta name="twitter:image" content="/og-image.png" />
+
+    <!-- Theme initialization -->
+    <script>
+      (function() {
+        try {
+          var hash = window.location.hash;
+          var isDashboard = hash === '#dashboard' || hash === '#app';
+          var savedTheme = localStorage.getItem('theme');
+          if (isDashboard && savedTheme !== 'light') {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body class="bg-[#FAFAF9] text-slate-900 antialiased selection:bg-blue-600 selection:text-white">
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

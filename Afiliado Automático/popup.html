@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Afiliado Automático - Disparo de Ofertas WhatsApp</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- CABEÇALHO PRINCIPAL -->
+    <!-- CABEÇALHO PRINCIPAL -->
+    <header class="app-header">
+      <div class="header-brand">
+        <img src="icons/logo.png" alt="Afiliado Automático" class="brand-logo-img">
+      </div>
+      
+      <div class="header-actions">
+        <!-- Badge de Plano / Botão de Acesso -->
+        <button id="userPlanBadgeBtn" class="plan-badge-pill badge-superadmin" title="Ver detalhes da sua conta e plano">
+          <span id="headerPlanBadgeText">👑 Super Admin</span>
+        </button>
+        <!-- Botão de Configurações da Extensão (SEMPRE FIXO E VISÍVEL) -->
+        <button id="toggleConfigBtn" type="button" class="btn-icon-header" title="Configurações e Grupos">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- SUB-BARRA DE STATUS: CONTA LOGADA + CONTADOR + WHATSAPP -->
+    <div class="app-subbar">
+      <div id="subbarAccountPill" class="subbar-user-pill" title="Clique para gerenciar sua conta">
+        <span class="user-active-dot"></span>
+        <span id="subbarUserEmail" class="subbar-email-text">jsnevesme@gmail.com</span>
+      </div>
+      <div class="subbar-right-pills">
+        <span id="dailyDispatchCounter" class="daily-dispatch-pill" title="Disparos realizados hoje">🎯 Ilimitado</span>
+        <span class="status-indicator-pill" title="WhatsApp Web Sincronizado">
+          <span class="status-dot-pulse"></span>
+          <span>WhatsApp Ativo</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- SEÇÃO 1: CONFIGURAÇÕES (ACCORDION / ABA) -->
+    <section id="configAccordion" class="config-panel collapsed">
+      <div class="config-panel-inner">
+        <!-- Card de Usuário & Assinatura na Nuvem -->
+        <div class="user-account-card">
+          <div class="user-account-top">
+            <span id="userEmailDisplay" class="user-email-text">carregando conta...</span>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <button id="btnOpenDashboard" type="button" class="btn-open-dashboard" title="Abrir Dashboard Web no Navegador">📊 Dashboard</button>
+              <button id="btnLogout" class="btn-logout-small" title="Desconectar da conta">Sair</button>
+            </div>
+          </div>
+          <div class="user-account-details">
+            <span id="userPlanDisplay">Plano: Carregando...</span>
+            <span id="userPlanExpiryDisplay">Válido até: ...</span>
+          </div>
+
+          <!-- Seletor de plataforma para o Plano Starter (Exclusivo Starter) -->
+          <div id="starterPlatformSection" class="starter-platform-box hidden" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <h4>Plataforma Desbloqueada (Starter):</h4>
+              <span id="starterLockBadge" class="starter-lock-pill">🔓 Escolha Aberta</span>
+            </div>
+            <div class="select-wrapper">
+              <select id="starterPlatformSelect">
+                <option value="mercadolivre">🟡 Mercado Livre</option>
+                <option value="amazon">🔷 Amazon</option>
+                <option value="shopee">🟠 Shopee</option>
+              </select>
+              <span class="select-chevron">▾</span>
+            </div>
+            <div id="starterLockActionRow" style="margin-top: 8px;">
+              <button id="btnLockStarterPlatform" type="button" class="btn-lock-starter">
+                🔒 Bloquear Escolha por 1 Mês
+              </button>
+            </div>
+            <p id="starterLockNotice" class="starter-lock-desc">
+              No plano Starter você escolhe 1 plataforma e ela fica bloqueada por 1 mês até a virada do mês. Para usar todas simultaneamente e sem restrições, faça upgrade para o Pro ou Ultra.
+            </p>
+          </div>
+        </div>
+
+        <div class="config-divider"></div>
+        <!-- Tags de Afiliado Multiplataforma -->
+        <div class="config-group">
+          <label class="config-label">
+            <span class="label-icon">🏷️</span>
+            <span>Tags de Afiliado Multiplataforma</span>
+          </label>
+
+          <!-- Mercado Livre -->
+          <div class="platform-tag-item">
+            <span class="platform-tag-name">🟡 Mercado Livre (meli.la)</span>
+            <div class="input-inline">
+              <input 
+                type="text" 
+                id="affiliateTagInput" 
+                placeholder="Ex: jonathansneves"
+                autocomplete="off"
+              />
+              <button id="saveTagBtn" class="btn-secondary" title="Salvar Etiqueta Mercado Livre">Salvar</button>
+            </div>
+          </div>
+
+          <!-- Amazon Brasil -->
+          <div class="platform-tag-item" style="margin-top: 8px;">
+            <span class="platform-tag-name">🔷 Amazon (Tag de Associado)</span>
+            <div class="input-inline">
+              <input 
+                type="text" 
+                id="amazonTagInput" 
+                placeholder="Ex: casaldosach09-20"
+                autocomplete="off"
+              />
+              <button id="saveAmazonTagBtn" class="btn-secondary" title="Salvar Tag Amazon">Salvar</button>
+            </div>
+          </div>
+
+          <!-- Shopee Brasil -->
+          <div class="platform-tag-item" style="margin-top: 8px;">
+            <span class="platform-tag-name">🟠 Shopee (ID / Link de Afiliado)</span>
+            <div class="input-inline">
+              <input 
+                type="text" 
+                id="shopeeTagInput" 
+                placeholder="Ex: seu-id ou link universal"
+                autocomplete="off"
+              />
+              <button id="saveShopeeTagBtn" class="btn-secondary" title="Salvar Tag Shopee">Salvar</button>
+            </div>
+          </div>
+
+          <small class="hint-text">Gera links rastreados oficiais automaticamente em cada plataforma.</small>
+        </div>
+
+        <div class="config-divider"></div>
+
+        <!-- Chave de API Groq (IA Llama / GPT-OSS) -->
+        <div class="config-group">
+          <label for="groqApiKeyInput" class="config-label">
+            <span class="label-icon">🤖</span>
+            <span>Chave de API Groq (IA Copywriting)</span>
+          </label>
+          <div class="input-inline">
+            <input 
+              type="password" 
+              id="groqApiKeyInput" 
+              placeholder="gsk_..."
+              autocomplete="off"
+            />
+            <button id="saveGroqKeyBtn" class="btn-secondary" title="Salvar Chave Groq">Salvar</button>
+          </div>
+          <div style="margin-top: 6px;">
+            <button id="openGroqKeysBtn" type="button" class="btn-link-action" style="background: none; border: none; color: #2563EB; font-size: 12px; font-weight: 600; cursor: pointer; padding: 2px 0; text-decoration: underline; display: inline-flex; align-items: center; gap: 4px;" title="Abrir página oficial do Groq para criar sua chave gratuita">
+              🔑 Obter Chave no Groq ↗
+            </button>
+          </div>
+          <small class="hint-text">Gera copies persuasivas e de alta conversão antes de disparar.</small>
+        </div>
+
+        <div class="config-divider"></div>
+
+        <!-- Modelo / Estilo da Copy IA (WhatsApp) -->
+        <div class="config-group">
+          <label for="copyStyleSelect" class="config-label">
+            <span class="label-icon">✍️</span>
+            <span>Modelo de Copy IA (WhatsApp)</span>
+          </label>
+          <div class="select-wrapper">
+            <select id="copyStyleSelect">
+              <option value="vantagens_gatilhos" selected>⭐ Vantagens & Gatilhos Mentais (Recomendado)</option>
+              <option value="alerta_bug">🚨 Alerta de Preço Baixo / Bug</option>
+              <option value="direto_ao_ponto">⚡ Direto ao Ponto (Minimalista)</option>
+              <option value="review_especialista">💡 Dica do Especialista / Autoridade</option>
+              <option value="frete_gratis">📦 Frete Grátis Relâmpago</option>
+              <option value="ultimas_horas">⏰ Últimas Horas / Escassez Noturna</option>
+              <option value="custom">✍️ Modelo Personalizado (Estúdio de Copys)</option>
+            </select>
+            <span class="select-chevron">▾</span>
+          </div>
+          <small class="hint-text">Escolha a estrutura persuasiva que a IA usará para gerar as mensagens.</small>
+        </div>
+
+        <div class="config-divider"></div>
+
+        <!-- Sincronização Automática com WhatsApp Web -->
+        <div class="config-group">
+          <label class="config-label">
+            <span class="label-icon">🔄</span>
+            <span>Sincronização de Grupos do WhatsApp</span>
+          </label>
+          <button id="btnSyncGroups" class="btn-sync-action">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon">
+              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+            </svg>
+            <span id="btnSyncText">Puxar Grupos do WhatsApp Web</span>
+          </button>
+          <small id="syncStatusHint" class="hint-text">Conecta ao WhatsApp Web e importa todos os seus grupos automaticamente.</small>
+
+          <!-- Listagem visual dos grupos sincronizados -->
+          <div class="groups-list-container" style="margin-top: 10px;">
+            <div class="groups-list-header">
+              <span>Grupos Sincronizados (<span id="groupsCount">0</span>)</span>
+            </div>
+            <ul id="groupsList" class="groups-list">
+              <!-- Renderizado dinamicamente via JS -->
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SEÇÃO 2: BUSCA, SELEÇÃO E IA -->
+    <section class="search-section">
+      <!-- Seletor de Destino (Dropdown de Grupos) com botão de Sync rápido -->
+      <div class="target-group-wrapper">
+        <div class="target-header-row">
+          <label for="targetGroup" class="target-group-label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="wa-icon-small">
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+            </svg>
+            <span>Grupo de Destino do WhatsApp:</span>
+          </label>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <button id="btnPinTargetGroup" class="btn-pin-group" title="Fixar este grupo como padrão para não ter que selecionar toda hora">
+              <span>📌</span> <span id="btnPinTargetGroupText">Fixar Padrão</span>
+            </button>
+            <button id="quickSyncBtn" class="btn-quick-sync" title="Atualizar lista de grupos do WhatsApp">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="select-wrapper">
+          <select id="targetGroup">
+            <option value="">Carregando grupos...</option>
+          </select>
+          <span class="select-chevron">▾</span>
+        </div>
+      </div>
+
+      <!-- NAVEGAÇÃO PRINCIPAL POR ABAS (OFERTAS vs FAVORITOS) -->
+      <div class="main-tabs-wrapper">
+        <button id="tabBtnSearch" class="main-tab-btn active" type="button">
+          <span class="tab-btn-icon">🔥</span>
+          <span class="tab-btn-label">Ofertas</span>
+        </button>
+        <button id="tabBtnFavorites" class="main-tab-btn" type="button">
+          <span class="tab-btn-icon">⭐</span>
+          <span class="tab-btn-label">Favoritos</span>
+          <span id="favoritesBadge" class="tab-count-badge">0</span>
+        </button>
+      </div>
+
+      <div id="searchControlsSection">
+        <!-- Barra de Controle da IA Copywriting -->
+        <div class="ai-banner-row">
+          <label class="ai-checkbox-label">
+            <input type="checkbox" id="useAiCopyCheckbox" checked>
+            <span class="ai-badge">✨ IA COPYWRITER</span>
+            <span class="ai-label-text">Copy Persuasiva Ativa</span>
+          </label>
+          <button id="toggleAiPreviewBtn" class="btn-ai-preview">
+            <span>👁️ Ver / Editar Texto</span>
+          </button>
+        </div>
+
+        <!-- Caixa Expansível de Prévia / Edição da Copy da IA -->
+        <div id="aiPreviewBox" class="ai-preview-box hidden">
+          <div class="ai-preview-header">
+            <span>Prévia da Mensagem:</span>
+            <div class="ai-preview-controls">
+              <button id="regenerateCopyBtn" class="btn-mini-ai" title="Gerar novo texto persuasivo com Inteligência Artificial">
+                ⚡ Regenerar
+              </button>
+            </div>
+          </div>
+          <textarea id="aiCustomCopyTextarea" placeholder="A Inteligência Artificial criará a copy persuasiva com quebras de linha e formatação oficial ao disparar..."></textarea>
+        </div>
+      </div>
+    </section>
+
+    <!-- SEÇÃO 3: RESULTADOS (LISTA COM SCROLL) -->
+    <main class="results-container">
+      <div id="searchResultsSection">
+      <!-- BANNER DE DISPARO EM MASSA ATIVO (SEGUNDO PLANO) -->
+      <div id="massDispatchQueueBanner" class="queue-banner hidden">
+        <div class="queue-header">
+          <div class="queue-header-left">
+            <span class="queue-pulse"></span>
+            <span class="queue-title">Disparo em Massa Ativo</span>
+          </div>
+          <span id="queueProgressBadge" class="queue-progress-badge">0 / 0</span>
+        </div>
+        <div class="queue-progress-bar-bg">
+          <div id="queueProgressBar" class="queue-progress-bar-fill" style="width: 0%;"></div>
+        </div>
+        <div class="queue-details">
+          <span id="queueNextDispatchInfo" class="queue-info-text">⏳ Próximo envio em: calculando...</span>
+          <div class="queue-controls">
+            <button id="btnPauseQueue" class="btn-queue-action" title="Pausar / Retomar Disparos">⏸️ Pausar</button>
+            <button id="btnCancelQueue" class="btn-queue-action cancel" title="Cancelar Fila de Disparo">🛑 Parar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Produto Aberto Nesta Página (Detecção Automática) -->
+      <div id="currentPageSection" class="current-product-banner" style="display: none; margin: 8px 14px 4px 14px;">
+        <div class="current-banner-header">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span class="pulse-dot"></span>
+            <span>Produto Aberto Nesta Página</span>
+          </div>
+          <span id="currentProductPlatformBadge" class="platform-chip-badge badge-ml">🟡 Mercado Livre</span>
+        </div>
+        <div class="current-card-body">
+          <div class="card-img-wrapper" style="width: 44px; height: 44px;">
+            <img id="currentProductImg" class="card-img" src="" alt="Produto">
+          </div>
+          <div class="current-info">
+            <span id="currentProductTitle" class="current-title"></span>
+            <div class="current-price-row">
+              <span id="currentProductOriginalPrice" class="card-original-price" style="display:none; font-size: 11px;"></span>
+              <span id="currentProductPrice" class="card-price" style="font-size: 13px;"></span>
+              <span id="currentProductDiscount" class="card-discount-badge" style="display:none;"></span>
+            </div>
+            <div class="current-meta-row" id="currentProductMetaRow" style="display:none; align-items:center; gap:6px; margin-top:3px; flex-wrap:wrap;">
+              <span class="card-rating-badge" id="currentProductRatingBadge" style="display:none; font-size:10px; padding:1px 5px;"></span>
+              <span class="card-sales-badge" id="currentProductSalesBadge" style="display:none; font-size:10px; padding:1px 5px;"></span>
+            </div>
+            <div class="current-commission-row" id="currentCommissionRow" style="display:none;">
+              <span class="current-commission-badge" id="currentProductCommission">💰 Ganho: R$ 0,00 (0%)</span>
+              <span class="current-category-tag" id="currentProductCategory"></span>
+            </div>
+          </div>
+          <div class="current-actions-col">
+            <button id="btnFavCurrentProduct" class="btn-fav-star" title="Salvar / Remover dos Favoritos" type="button">
+              <span id="btnFavCurrentIcon">⭐</span>
+            </button>
+            <button id="dispatchCurrentBtn" class="btn-dispatch-small" title="Disparar este produto com IA para o grupo selecionado">
+              <svg viewBox="0 0 24 24"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2z"/></svg>
+              <span>Disparar</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- BARRA DE ORDENAÇÃO, FILTROS E DISPARO EM MASSA -->
+      <div id="filterSortToolbar" class="filter-sort-toolbar hidden">
+        <!-- Linha 1: Seletores de Ordenação e Filtros -->
+        <div class="toolbar-controls-row">
+          <div class="control-field">
+            <label for="sortSelect" class="toolbar-label">Ordenar:</label>
+            <select id="sortSelect" class="toolbar-select">
+              <option value="sales_desc">🔥 Mais Vendidos</option>
+              <option value="commission_val_desc">💰 Maior Comissão (R$)</option>
+              <option value="commission_rate_desc">📈 Maior Comissão (%)</option>
+              <option value="rating_desc">⭐ Melhor Avaliação</option>
+              <option value="price_asc">💰 Menor Preço</option>
+              <option value="price_desc">💎 Maior Preço</option>
+              <option value="discount_desc">🏷️ Maior Desconto</option>
+              <option value="default">Padrão</option>
+            </select>
+          </div>
+
+          <div class="control-field">
+            <label for="ratingFilterSelect" class="toolbar-label">Avaliação:</label>
+            <select id="ratingFilterSelect" class="toolbar-select">
+              <option value="all">Todas</option>
+              <option value="4.8">⭐ 4.8+ Top</option>
+              <option value="4.5">⭐ 4.5+ Alta</option>
+              <option value="4.0">⭐ 4.0+ Boa</option>
+            </select>
+          </div>
+
+          <div class="control-field">
+            <label for="salesFilterSelect" class="toolbar-label">Vendas:</label>
+            <select id="salesFilterSelect" class="toolbar-select">
+              <option value="all">Todos</option>
+              <option value="best_sellers">🔥 + Vendidos</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Linha 2: Seleção em Massa & Botão de Intervalos -->
+        <div class="bulk-selection-bar">
+          <label class="bulk-checkbox-label" title="Selecionar ou desmarcar todos os itens visíveis">
+            <input type="checkbox" id="selectAllCheckbox">
+            <span class="custom-chk-box"></span>
+            <span id="selectedCountLabel" class="selected-count-badge">0 selecionados</span>
+          </label>
+
+          <button id="toggleMassConfigBtn" class="btn-mass-config" title="Configurar intervalo e disparar todos os produtos marcados">
+            <span>🚀 Disparo em Massa</span>
+            <span class="chevron-mass">▾</span>
+          </button>
+        </div>
+
+        <!-- Painel Expansível de Configuração do Disparo em Massa -->
+        <div id="massConfigPanel" class="mass-config-panel hidden">
+          <div class="mass-panel-inner">
+            <div class="interval-inputs-row">
+              <div class="interval-field">
+                <span class="interval-title">Intervalo Mínimo:</span>
+                <div class="input-with-unit">
+                  <input type="number" id="minIntervalInput" min="1" max="180" value="10" class="interval-num-input">
+                  <span class="unit-tag">min</span>
+                </div>
+              </div>
+
+              <div class="interval-field">
+                <span class="interval-title">Intervalo Máximo:</span>
+                <div class="input-with-unit">
+                  <input type="number" id="maxIntervalInput" min="1" max="180" value="30" class="interval-num-input">
+                  <span class="unit-tag">min</span>
+                </div>
+              </div>
+            </div>
+
+            <label class="random-toggle-label">
+              <input type="checkbox" id="randomIntervalCheckbox" checked>
+              <span class="random-toggle-text">🎲 Intervalos aleatórios (anti-bloqueio WhatsApp)</span>
+            </label>
+
+            <div class="mass-hint-box">
+              <span>💡 A IA gerará copies persuasivas exclusivas e individualizadas para cada produto disparado.</span>
+            </div>
+
+            <button id="btnStartMassDispatch" class="btn-start-mass-action">
+              <svg viewBox="0 0 24 24"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2z"/></svg>
+              <span id="btnStartMassText">Iniciar Disparo em Massa</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="results-header">
+        <span class="results-title">Ofertas</span>
+        <span id="resultsCountBadge" class="results-badge" style="display: none;">0 itens</span>
+      </div>
+
+      <div id="results" class="results-scroll-area">
+        <!-- Estado Inicial -->
+        <div class="empty-state" id="initialState">
+          <div class="empty-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              <path d="M11 8v6"></path>
+              <path d="M8 11h6"></path>
+            </svg>
+          </div>
+          <h3>Encontre as Melhores Ofertas</h3>
+          <p>Abra qualquer produto ou lista de ofertas na Shopee, Amazon ou Mercado Livre para disparar com 1 clique para o WhatsApp!</p>
+        </div>
+      </div>
+      </div> <!-- fim de #searchResultsSection -->
+
+      <!-- SEÇÃO DA ABA DE FAVORITOS (TIMELINE POR DIA) -->
+      <div id="favoritesTabPane" class="favorites-tab-pane hidden">
+        <!-- Caixa Expansível de Prévia / Edição da Copy nos Favoritos -->
+        <div id="favAiPreviewBox" class="ai-preview-box hidden" style="margin: 0 14px 6px 14px;">
+          <div class="ai-preview-header">
+            <span>Prévia da Mensagem (Favoritos):</span>
+            <button id="btnFavRegenerateCopy" class="btn-mini-ai" type="button" title="Gerar novo texto com o modelo das configurações">
+              ⚡ Regenerar
+            </button>
+          </div>
+          <textarea id="favAiCustomCopyTextarea" placeholder="A IA gerará a copy persuasiva completa ao disparar..."></textarea>
+        </div>
+
+        <!-- Barra de Pastas dos Favoritos -->
+        <div id="favFoldersBar" class="fav-folders-bar" style="display: flex; align-items: center; gap: 6px; overflow-x: auto; padding: 4px 14px 8px 14px; scrollbar-width: none;">
+          <!-- Pastas renderizadas dinamicamente via popup.js -->
+        </div>
+
+        <!-- Barra de Ações dos Favoritos -->
+        <div class="fav-toolbar-card">
+          <div class="fav-toolbar-top">
+            <label class="fav-select-all-label">
+              <input type="checkbox" id="favSelectAllCheckbox" style="accent-color: #2D3277; cursor: pointer;">
+              <span id="favSelectedCountLabel">Selecionar Todas</span>
+            </label>
+            <div class="fav-toolbar-actions">
+              <button id="btnDispatchSelectedFavorites" class="btn-fav-dispatch-batch" disabled title="Disparar ofertas favoritas selecionadas para o WhatsApp">
+                <span>🚀 Disparar (<span id="favBatchCount">0</span>)</span>
+              </button>
+              <button id="btnClearAllFavorites" class="btn-fav-clear" title="Remover todas as ofertas dos favoritos" type="button">
+                <span>🗑️</span>
+              </button>
+            </div>
+          </div>
+          <div class="fav-toolbar-bottom">
+            <span id="favTotalSavedCount" class="fav-total-badge">0 salvas</span>
+          </div>
+        </div>
+
+        <!-- Linha do Tempo de Favoritos Agrupada por Dia -->
+        <div id="favoritesTimelineContainer" class="fav-timeline-scroll">
+          <!-- Renderizado dinamicamente via popup.js -->
+        </div>
+      </div>
+    </main>
+
+    <!-- TOAST DE NOTIFICAÇÃO FLUTUANTE -->
+    <div id="toastNotification" class="toast-notification hidden">
+      <span id="toastIcon" class="toast-icon">ℹ️</span>
+      <span id="toastMessage" class="toast-message">Mensagem do sistema</span>
+    </div>
+
+    <!-- MODAL DE AUTENTICAÇÃO (LOGIN / CADASTRO COM 3 DIAS GRÁTIS) -->
+    <div id="authModal" class="modal-overlay hidden">
+      <div class="auth-card">
+        <div class="auth-header">
+          <img src="icons/icon48.png" alt="Logo" class="auth-logo">
+          <h2>Afiliado Automático</h2>
+          <p id="authSubtitle">Entre ou crie sua conta para sincronizar dados e disparar ofertas</p>
+        </div>
+        
+        <div class="auth-tabs">
+          <button id="tabAuthLogin" class="auth-tab-btn active" type="button">Entrar</button>
+          <button id="tabAuthRegister" class="auth-tab-btn" type="button">Criar Conta Grátis</button>
+        </div>
+
+        <form id="authForm" class="auth-form">
+          <div class="auth-input-group">
+            <label for="authEmailInput">E-mail</label>
+            <input type="email" id="authEmailInput" placeholder="seu@email.com" required autocomplete="email">
+          </div>
+
+          <div class="auth-input-group">
+            <label for="authPasswordInput">Senha</label>
+            <div class="password-input-wrapper">
+              <input type="password" id="authPasswordInput" placeholder="••••••••" required autocomplete="current-password">
+              <button type="button" id="togglePasswordVisibilityBtn" class="btn-toggle-pwd" title="Mostrar/ocultar senha">👁️</button>
+            </div>
+          </div>
+
+          <div id="authTrialNotice" class="auth-trial-notice hidden">
+            🎁 <strong>3 Dias de Acesso Grátis Completo!</strong> Crie sua conta e comece a faturar agora mesmo sem compromisso.
+          </div>
+
+          <div id="authErrorMessage" class="auth-error-msg hidden"></div>
+
+          <button type="submit" id="btnAuthSubmit" class="btn-auth-submit">
+            <span id="btnAuthSubmitText">Entrar no Sistema</span>
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL DE PLANOS & ASSINATURA CAKTO (PAYWALL / UPGRADE) -->
+    <div id="upgradeModal" class="modal-overlay hidden">
+      <div class="upgrade-card">
+        <div class="upgrade-header">
+          <div class="upgrade-icon">🚀</div>
+          <h2 id="upgradeTitle">Escolha Seu Plano de Acesso</h2>
+          <p id="upgradeSubtitle">Assine um plano para liberar os disparos ilimitados ou multiplataforma com IA para seus grupos do WhatsApp!</p>
+        </div>
+
+        <div class="pricing-plans-grid">
+          <!-- PLANO STARTER -->
+          <div class="plan-card" data-plan="starter">
+            <div class="plan-card-header">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span class="plan-pill-tag">🔷 STARTER</span>
+                <span class="plan-price-highlight">R$ 29,90<small>/mês</small></span>
+              </div>
+              <h3>Plano Starter</h3>
+              <div class="plan-price-subinfo">ou R$ 299,90 no plano Anual (Economize 2 meses)</div>
+              <p class="plan-desc">1 plataforma à sua escolha • 20 disparos/dia</p>
+            </div>
+            <ul class="plan-features">
+              <li>✅ <strong>1 plataforma selecionada</strong> (ex: Mercado Livre)</li>
+              <li>✅ <strong>Até 20 disparos</strong> por dia</li>
+              <li>✅ IA CopyStudio integrada</li>
+              <li>✅ Links oficiais rastreados</li>
+            </ul>
+            <div class="plan-buttons">
+              <a href="https://pay.cakto.com.br/fajichq_1260860" target="_blank" class="btn-checkout-plan btn-monthly">
+                <span>Mensal</span>
+                <span class="btn-price-tag">R$ 39,90</span>
+              </a>
+              <a href="https://pay.cakto.com.br/bi9dwyf" target="_blank" class="btn-checkout-plan btn-yearly">
+                <span>Anual</span>
+                <span class="btn-price-tag">R$ 199,90</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- PLANO PRO -->
+          <div class="plan-card featured-plan" data-plan="pro">
+            <div class="featured-badge">MAIS POPULAR ⭐</div>
+            <div class="plan-card-header">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span class="plan-pill-tag tag-pro">🟣 PRO</span>
+                <span class="plan-price-highlight highlight-pro">R$ 69,90<small>/mês</small></span>
+              </div>
+              <h3>Plano Pro</h3>
+              <div class="plan-price-subinfo">ou R$ 599,90 no plano Anual (12x de R$ 61,96)</div>
+              <p class="plan-desc">Todas as plataformas • Até 5 Grupos • 50 disparos/dia</p>
+            </div>
+            <ul class="plan-features">
+              <li>✅ <strong>Todas as plataformas liberadas</strong> (Mercado Livre + Amazon + Shopee)</li>
+              <li>✅ <strong>Até 5 Grupos de WhatsApp</strong> simultâneos</li>
+              <li>✅ Disparo em Massa Inteligente</li>
+              <li>✅ IA CopyStudio sem limites</li>
+            </ul>
+            <div class="plan-buttons">
+              <a href="https://pay.cakto.com.br/x3whytm" target="_blank" class="btn-checkout-plan btn-monthly featured-btn">
+                <span>Mensal</span>
+                <span class="btn-price-tag">R$ 69,90</span>
+              </a>
+              <a href="https://pay.cakto.com.br/685h3or" target="_blank" class="btn-checkout-plan btn-yearly">
+                <span>Anual</span>
+                <span class="btn-price-tag">R$ 599,90</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- PLANO ULTRA -->
+          <div class="plan-card" data-plan="ultra">
+            <div class="plan-card-header">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span class="plan-pill-tag tag-ultra">🔥 ULTRA</span>
+                <span class="plan-price-highlight highlight-ultra">R$ 89,90<small>/mês</small></span>
+              </div>
+              <h3>Plano Ultra</h3>
+              <div class="plan-price-subinfo">ou R$ 699,90 no plano Anual (12x de R$ 72,29)</div>
+              <p class="plan-desc">Todas as plataformas • Até 10 Grupos • Disparos ILIMITADOS</p>
+            </div>
+            <ul class="plan-features">
+              <li>✅ <strong>Todas as plataformas liberadas</strong> (ML, Amazon e Shopee)</li>
+              <li>✅ <strong>Até 10 Grupos de WhatsApp</strong> conectados</li>
+              <li>✅ <strong>Disparos ILIMITADOS</strong> todos os dias</li>
+              <li>✅ Fila contínua e Consultor IA VIP</li>
+            </ul>
+            <div class="plan-buttons">
+              <a href="https://pay.cakto.com.br/3anjzu2" target="_blank" class="btn-checkout-plan btn-monthly">
+                <span>Mensal</span>
+                <span class="btn-price-tag">R$ 89,90</span>
+              </a>
+              <a href="https://pay.cakto.com.br/rfxsekm" target="_blank" class="btn-checkout-plan btn-yearly">
+                <span>Anual</span>
+                <span class="btn-price-tag">R$ 699,90</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="upgrade-footer">
+          <button id="btnCheckSubscriptionStatus" class="btn-refresh-subscription" type="button">🔄 Já assinei / Atualizar Acesso</button>
+          <button id="btnCloseUpgradeModal" class="btn-close-modal" type="button">Fechar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="commission.js"></script>
+  <script src="supabase_client.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
