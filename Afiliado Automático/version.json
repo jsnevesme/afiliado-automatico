@@ -1,7 +1,7 @@
 {
-  "version": "2.2.0",
-  "buildTimestamp": 1730410800000,
-  "updatedAt": "2026-10-31T20:30:00.000Z",
+  "version": "2.2.1",
+  "buildTimestamp": 1730419999000,
+  "updatedAt": "2026-10-31T20:13:30.000Z",
   "features": [
     "Sistema de Auto-Reload e Auto-Update em tempo real",
     "Links curtos oficiais e direct preview na Shopee, Mercado Livre e Amazon",
