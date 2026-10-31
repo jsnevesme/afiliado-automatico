@@ -25,8 +25,8 @@ chrome.runtime.onInstalled.addListener(async () => {
   if (!data.groq_api_key) {
     await chrome.storage.local.set({ groq_api_key: DEFAULT_GROQ_API_KEY });
   }
-  if (!data.ml_affiliate_tag) {
-    await chrome.storage.local.set({ ml_affiliate_tag: 'jonathansneves' });
+  if (data.ml_affiliate_tag === 'jonathansneves') {
+    await chrome.storage.local.set({ ml_affiliate_tag: '' });
   }
   // Limpa qualquer dado residual de cupons legados
   await chrome.storage.local.remove(['ml_active_coupons', 'ml_coupons', 'active_coupons', 'activeCouponsList']);

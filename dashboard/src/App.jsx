@@ -45,6 +45,7 @@ export default function App() {
     } catch (e) {}
     return true // Padrão escuro ativado
   })
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   // Sincroniza hash do navegador
   useEffect(() => {
@@ -204,11 +205,18 @@ export default function App() {
       } catch (e) {}
 
       const isSuperAdminEmail = currentUser.email?.toLowerCase() === 'jsnevesme@gmail.com'
+      const sanitizedMlTag = isSuperAdminEmail
+        ? (prof?.ml_affiliate_tag || 'jonathansneves')
+        : (prof?.ml_affiliate_tag === 'jonathansneves' ? '' : (prof?.ml_affiliate_tag || ''))
+      const sanitizedGroqKey = isSuperAdminEmail ? (prof?.groq_api_key || '') : (prof?.groq_api_key || '')
+
       const mergedProfile = {
         ...(prof || {}),
         role: prof?.role || (isSuperAdminEmail ? 'superadmin' : 'user'),
         full_name: prof?.full_name || authMeta.full_name || localMeta.full_name || (isSuperAdminEmail ? 'Jonathan Neves' : currentUser.email?.split('@')[0] || 'Afiliado'),
-        avatar_url: prof?.avatar_url || authMeta.avatar_url || localMeta.avatar_url || ''
+        avatar_url: prof?.avatar_url || authMeta.avatar_url || localMeta.avatar_url || '',
+        ml_affiliate_tag: sanitizedMlTag,
+        groq_api_key: sanitizedGroqKey
       }
 
       setProfile(mergedProfile)
@@ -487,7 +495,7 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-gradient-to-br from-[#EAEFF5] via-[#F2F5F8] to-[#E5EBF2] dark:from-[#06090E] dark:via-[#090D15] dark:to-[#05070B] p-2 sm:p-3 md:p-4 flex items-center justify-center font-sans text-slate-900 dark:text-slate-100 transition-colors">
+    <div className="h-screen w-screen overflow-hidden bg-gradient-to-br from-[#EAEFF5] via-[#F2F5F8] to-[#E5EBF2] dark:from-[#06090E] dark:via-[#090D15] dark:to-[#05070B] p-0 sm:p-2 md:p-3 lg:p-4 flex items-center justify-center font-sans text-slate-900 dark:text-slate-100 transition-colors">
       {!user && (
         <AuthModal
           initialMode="login"
@@ -508,7 +516,7 @@ export default function App() {
       />
 
       {/* Container Flutuante com Bordas Arredondadas (Estilo SETO / Healthy) */}
-      <div className="w-full h-full rounded-[24px] sm:rounded-[28px] md:rounded-[32px] bg-[#F7F8FA] dark:bg-[#0E131F] border border-white/80 dark:border-slate-800/80 shadow-2xl flex overflow-hidden">
+      <div className="w-full h-full rounded-none sm:rounded-[24px] md:rounded-[28px] lg:rounded-[32px] bg-[#F7F8FA] dark:bg-[#0E131F] border-0 sm:border border-white/80 dark:border-slate-800/80 shadow-none sm:shadow-2xl flex overflow-hidden relative">
         <Sidebar
           currentTab={currentTab}
           setTab={setTab}
@@ -520,6 +528,8 @@ export default function App() {
           onToggleDarkMode={() => setDarkMode((prev) => !prev)}
           onOpenProfile={() => setProfileModalOpen(true)}
           favoritesCount={favorites.length}
+          mobileMenuOpen={mobileMenuOpen}
+          onCloseMobileMenu={() => setMobileMenuOpen(false)}
         />
 
         <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
@@ -538,9 +548,10 @@ export default function App() {
             darkMode={darkMode}
             onToggleDarkMode={() => setDarkMode((prev) => !prev)}
             onGoToLanding={() => handleSetViewMode('landing')}
+            onOpenMobileMenu={() => setMobileMenuOpen(true)}
           />
 
-          <main className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 bg-[#F7F8FA] dark:bg-[#0E131F]">
+          <main className="flex-1 overflow-y-auto p-3 sm:p-5 lg:p-6 bg-[#F7F8FA] dark:bg-[#0E131F]">
             {currentTab === 'analytics' && (
               <AnalyticsView
                 profile={profile}

@@ -15,7 +15,8 @@ import {
   Radio,
   ArrowRight,
   BookmarkCheck,
-  Download
+  Download,
+  X
 } from 'lucide-react'
 import ChromeLogo from './ChromeLogo'
 
@@ -29,10 +30,17 @@ export default function Sidebar({
   darkMode,
   onToggleDarkMode,
   onOpenProfile,
-  favoritesCount = 0
+  favoritesCount = 0,
+  mobileMenuOpen = false,
+  onCloseMobileMenu
 }) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef(null)
+
+  const handleSelectTab = (id) => {
+    setTab(id)
+    if (onCloseMobileMenu) onCloseMobileMenu()
+  }
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -72,31 +80,54 @@ export default function Sidebar({
   const initialLetter = displayName.charAt(0).toUpperCase()
 
   return (
-    <aside className="w-60 flex-shrink-0 h-full border-r border-slate-200/70 dark:border-slate-800/70 bg-[#F7F8FA] dark:bg-[#0E131F] flex flex-col justify-between p-4 transition-colors select-none z-20">
-      <div className="space-y-6">
-        {/* Brand Header (Igual às imagens de referência: Ícone Quadrado + Nome) */}
-        <div className="px-2 pt-1 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <img
-              src="/logo.png"
-              alt="Afiliado Automático"
-              className="h-7 w-auto object-contain block dark:hidden"
-            />
-            <img
-              src="/logo-dark.png"
-              alt="Afiliado Automático"
-              className="h-7 w-auto object-contain hidden dark:block"
-            />
-          </div>
+    <>
+      {/* Backdrop escuro para fechar o menu no mobile */}
+      {mobileMenuOpen && (
+        <div
+          onClick={onCloseMobileMenu}
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 md:hidden transition-opacity"
+        />
+      )}
 
-          <button
-            onClick={onToggleDarkMode}
-            title={darkMode ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-colors"
-          >
-            {darkMode ? <Sun className="h-3.5 w-3.5 text-amber-400" /> : <Moon className="h-3.5 w-3.5 text-slate-600" />}
-          </button>
-        </div>
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 md:relative md:z-20 w-72 md:w-60 flex-shrink-0 h-full border-r border-slate-200/70 dark:border-slate-800/70 bg-[#F7F8FA] dark:bg-[#0E131F] flex flex-col justify-between p-4 transition-transform duration-300 ease-in-out select-none shadow-2xl md:shadow-none ${
+          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}
+      >
+        <div className="space-y-6">
+          {/* Brand Header */}
+          <div className="px-2 pt-1 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <img
+                src="/logo.png"
+                alt="Afiliado Automático"
+                className="h-7 w-auto object-contain block dark:hidden"
+              />
+              <img
+                src="/logo-dark.png"
+                alt="Afiliado Automático"
+                className="h-7 w-auto object-contain hidden dark:block"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={onToggleDarkMode}
+                title={darkMode ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-colors"
+              >
+                {darkMode ? <Sun className="h-3.5 w-3.5 text-amber-400" /> : <Moon className="h-3.5 w-3.5 text-slate-600" />}
+              </button>
+
+              <button
+                onClick={onCloseMobileMenu}
+                className="md:hidden flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-colors"
+                title="Fechar menu"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
 
         {/* Menu Principal (Estilo Cápsula Branca Flutuante das referências) */}
         <div className="space-y-5">
@@ -108,7 +139,7 @@ export default function Sidebar({
               return (
                 <button
                   key={item.id}
-                  onClick={() => setTab(item.id)}
+                  onClick={() => handleSelectTab(item.id)}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs transition-all ${
                     isActive
                       ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold shadow-xs'
@@ -148,7 +179,7 @@ export default function Sidebar({
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setTab(item.id)}
+                    onClick={() => handleSelectTab(item.id)}
                     className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs transition-all ${
                       isActive
                         ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold shadow-xs'
@@ -170,7 +201,7 @@ export default function Sidebar({
               })}
 
               <button
-                onClick={() => setTab('settings')}
+                onClick={() => handleSelectTab('settings')}
                 className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs transition-all ${
                   currentTab === 'settings'
                     ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold shadow-xs'
@@ -183,7 +214,7 @@ export default function Sidebar({
 
               {isSuperAdmin && (
                 <button
-                  onClick={() => setTab('superadmin')}
+                  onClick={() => handleSelectTab('superadmin')}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs transition-all ${
                     currentTab === 'superadmin'
                       ? 'bg-purple-600 text-white font-bold shadow-xs'
@@ -204,7 +235,7 @@ export default function Sidebar({
         {/* Aba / Card de Destaque: Baixar Extensão do Chrome (Logo acima do nome) */}
         <button
           type="button"
-          onClick={() => setTab('extension')}
+          onClick={() => handleSelectTab('extension')}
           className={`w-full group relative overflow-hidden rounded-2xl p-2.5 border transition-all duration-200 text-left cursor-pointer ${
             currentTab === 'extension'
               ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-500 shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40'
@@ -320,5 +351,6 @@ export default function Sidebar({
         </div>
       </div>
     </aside>
+    </>
   )
 }

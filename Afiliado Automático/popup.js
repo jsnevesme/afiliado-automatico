@@ -157,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // =========================================================================
   let groups = [];
   let pinnedGroup = '';
-  let affiliateTag = 'jonathansneves';
+  let affiliateTag = '';
   let amazonAffiliateTag = '';
   let shopeeAffiliateTag = '';
   let groqApiKey = '';
@@ -384,7 +384,10 @@ document.addEventListener('DOMContentLoaded', () => {
         'ml_default_commission_rate'
       ]);
 
-      affiliateTag = (data.ml_affiliate_tag || 'jonathansneves').trim();
+      affiliateTag = (data.ml_affiliate_tag || '').trim();
+      if (affiliateTag === 'jonathansneves' && (!data.user_email || data.user_email.toLowerCase() !== 'jsnevesme@gmail.com')) {
+        affiliateTag = '';
+      }
       affiliateTagInput.value = affiliateTag;
 
       amazonAffiliateTag = (data.amazon_affiliate_tag || '').trim();

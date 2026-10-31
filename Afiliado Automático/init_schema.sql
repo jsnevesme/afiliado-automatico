@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   daily_dispatches_date date NOT NULL DEFAULT current_date,
   
   -- Configurações sincronizadas na nuvem
-  ml_affiliate_tag text DEFAULT 'jonathansneves',
+  ml_affiliate_tag text DEFAULT '',
   amazon_affiliate_tag text DEFAULT '',
   shopee_affiliate_tag text DEFAULT '',
   groq_api_key text DEFAULT '',

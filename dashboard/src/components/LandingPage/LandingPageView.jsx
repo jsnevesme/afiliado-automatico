@@ -80,6 +80,10 @@ export default function LandingPageView({
 
   const faqs = [
     {
+      q: 'Como funciona o teste grátis de 3 dias?',
+      a: 'Ao criar sua conta na plataforma, você recebe automaticamente 3 dias de teste grátis com todos os benefícios do Plano Starter: cadastro de 1 grupo de WhatsApp, integração com a extensão oficial do Chrome e disparos de ofertas com links encurtados de afiliado (meli.la). Você valida tudo na prática sem pagar nada adiantado.'
+    },
+    {
       q: 'O que é o Afiliado Automático e como ele me ajuda a vender mais?',
       a: 'O Afiliado Automático é uma plataforma completa integrada a uma extensão oficial para o Google Chrome. Ele extrai os dados do produto no Mercado Livre, Shopee e Amazon com 1 clique, calcula a comissão real, encurta o link com a sua tag oficial (meli.la / s.shopee) e dispara mensagens persuasivas formatadas direto para seus grupos do WhatsApp Web.'
     },
@@ -106,22 +110,23 @@ export default function LandingPageView({
   ]
 
   return (
-    <div className="min-h-screen bg-[#FAFAF9] dark:bg-[#0B0F17] text-stone-900 dark:text-slate-100 font-sans transition-colors selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-[#FAFAF9] text-stone-900 font-sans selection:bg-blue-600 selection:text-white">
       {/* 1. ANNOUNCEMENT TOP BAR */}
-      <div className="bg-stone-900 text-white dark:bg-blue-950/80 dark:border-b dark:border-blue-900/40 text-xs py-2 px-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-center gap-2.5 text-center">
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-600 text-[10px] font-extrabold uppercase tracking-wider">
-            NOVIDADE v2.1
+      <div className="bg-stone-900 text-white text-xs py-2 px-4">
+        <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-center gap-2 text-center">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-600 text-[10px] font-extrabold uppercase tracking-wider">
+            3 DIAS GRÁTIS
           </span>
           <span className="text-stone-200">
-            Extensão oficial do Chrome atualizada com links instantâneos <strong className="text-white">meli.la</strong> e proteção anti-bloqueio.
+            Cadastre-se hoje e ganhe <strong className="text-white">3 dias de teste grátis</strong> no Plano Starter sem cartão de crédito!
           </span>
-          <a
-            href="#pricing"
-            className="hidden sm:inline-flex items-center gap-1 font-bold text-blue-400 hover:text-blue-300 underline underline-offset-2 ml-1"
+          <button
+            type="button"
+            onClick={() => onOpenAuth('register')}
+            className="inline-flex items-center gap-1 font-bold text-blue-400 hover:text-blue-300 underline underline-offset-2 ml-1 cursor-pointer"
           >
-            Ver Planos <ArrowRight className="h-3 w-3" />
-          </a>
+            Começar Grátis <ArrowRight className="h-3 w-3" />
+          </button>
         </div>
       </div>
 
@@ -194,15 +199,17 @@ export default function LandingPageView({
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none" />
 
         <div className="relative max-w-5xl mx-auto px-4 sm:px-6 text-center space-y-6">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-stone-100 dark:bg-slate-800/80 border border-stone-200 dark:border-slate-700 text-xs font-bold text-stone-800 dark:text-slate-200 shadow-2xs">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 shadow-2xs">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="font-extrabold uppercase tracking-wider text-[11px]">3 DIAS DE TESTE GRÁTIS</span>
+            <span className="text-emerald-300">•</span>
             <ChromeLogo className="h-4 w-4" />
-            <span>Extensão Oficial Chrome com IA Integrada</span>
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            <span>Extensão Chrome com IA Integrada</span>
           </div>
 
-          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-stone-900 dark:text-white leading-[1.12]">
+          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-stone-900 leading-[1.12]">
             Transforme grupos de WhatsApp no seu próximo{' '}
-            <span className="relative inline-block text-blue-600 dark:text-blue-400">
+            <span className="relative inline-block text-blue-600">
               canal de receita
               <svg className="absolute -bottom-2 left-0 w-full" viewBox="0 0 250 8" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M1 5.5C50 2 150 2 249 5.5" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
@@ -210,7 +217,7 @@ export default function LandingPageView({
             </span>
           </h1>
 
-          <p className="text-sm sm:text-lg text-stone-600 dark:text-slate-300 max-w-3xl mx-auto leading-relaxed">
+          <p className="text-sm sm:text-lg text-stone-600 max-w-3xl mx-auto leading-relaxed">
             Curadoria inteligente de produtos, geração automática de links de afiliado com sua comissão e disparos com proteção anti-bloqueio direto pelo navegador.
           </p>
 
@@ -231,7 +238,7 @@ export default function LandingPageView({
                 onClick={() => onOpenAuth('register')}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-sm shadow-xl shadow-blue-500/25 transition-all transform hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
               >
-                <span>Criar Conta Grátis</span>
+                <span>Começar 3 Dias de Teste Grátis</span>
                 <ArrowRight className="h-4 w-4" />
               </button>
             )}
@@ -245,6 +252,10 @@ export default function LandingPageView({
               <span>Baixar Extensão (.ZIP)</span>
             </a>
           </div>
+
+          <p className="text-xs text-stone-600 font-medium pt-1">
+            🎉 <strong className="text-stone-900">3 dias de teste grátis no Plano Starter</strong> • Sem cartão de crédito • Acesso imediato
+          </p>
 
           <div className="pt-4 flex flex-wrap items-center justify-center gap-3 text-xs text-stone-500 dark:text-slate-400">
             <div className="flex -space-x-2 overflow-hidden">

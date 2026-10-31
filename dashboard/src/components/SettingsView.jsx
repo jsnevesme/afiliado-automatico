@@ -84,7 +84,7 @@ export default function SettingsView({ profile, onProfileUpdate, isSuperAdmin, u
   const [avatarCategory, setAvatarCategory] = useState('people')
 
   // Configurações Técnicas
-  const [mlTag, setMlTag] = useState(profile?.ml_affiliate_tag || 'jonathansneves')
+  const [mlTag, setMlTag] = useState(profile?.ml_affiliate_tag || '')
   const [amzTag, setAmzTag] = useState(profile?.amazon_affiliate_tag || '')
   const [shpTag, setShpTag] = useState(profile?.shopee_affiliate_tag || '')
   const [groqKey, setGroqKey] = useState(profile?.groq_api_key || '')
@@ -96,7 +96,7 @@ export default function SettingsView({ profile, onProfileUpdate, isSuperAdmin, u
     if (profile) {
       setFullName(profile.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || '')
       setAvatarUrl(profile.avatar_url || user?.user_metadata?.avatar_url || '')
-      setMlTag(profile.ml_affiliate_tag || 'jonathansneves')
+      setMlTag(profile.ml_affiliate_tag || '')
       setAmzTag(profile.amazon_affiliate_tag || '')
       setShpTag(profile.shopee_affiliate_tag || '')
       setGroqKey(profile.groq_api_key || '')
@@ -427,7 +427,7 @@ export default function SettingsView({ profile, onProfileUpdate, isSuperAdmin, u
                 type="text"
                 value={mlTag}
                 onChange={(e) => setMlTag(e.target.value)}
-                placeholder="Ex: jonathansneves"
+                placeholder="Ex: sua_tag_afiliado"
                 className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-3.5 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
               <span className="text-[10px] text-slate-400 mt-1 block">Usado no meli.la e matt_tool</span>
@@ -490,6 +490,7 @@ export default function SettingsView({ profile, onProfileUpdate, isSuperAdmin, u
               value={groqKey}
               onChange={(e) => setGroqKey(e.target.value)}
               placeholder="gsk_..."
+              autoComplete="new-password"
               className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-3.5 py-2 text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
             <span className="text-[10px] text-slate-400 mt-1 block">
@@ -522,10 +523,10 @@ export default function SettingsView({ profile, onProfileUpdate, isSuperAdmin, u
           <div className="rounded-[22px] border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 p-4">
             <span className="text-[11px] font-bold text-slate-400 uppercase">Plano Atual</span>
             <div className="text-lg font-black text-slate-900 dark:text-white mt-1 uppercase">
-              {isSuperAdmin ? 'Super Admin' : (profile?.plan || 'Free Trial')}
+              {isSuperAdmin ? 'Super Admin' : (profile?.plan === 'free_trial' ? 'Starter (3 Dias Grátis)' : (profile?.plan || 'Starter'))}
             </div>
             <span className="text-[11px] text-slate-400">
-              {isSuperAdmin ? 'Acesso Vitalício' : (profile?.plan_period === 'yearly' ? 'Cobrança Anual' : 'Cobrança Mensal')}
+              {isSuperAdmin ? 'Acesso Vitalício' : (profile?.plan === 'free_trial' ? 'Período de Teste' : (profile?.plan_period === 'yearly' ? 'Cobrança Anual' : 'Cobrança Mensal'))}
             </span>
           </div>
 
@@ -535,7 +536,7 @@ export default function SettingsView({ profile, onProfileUpdate, isSuperAdmin, u
               {profile?.plan_status === 'active' ? 'Ativo' : 'Pendente'}
             </div>
             <span className="text-[11px] text-slate-400">
-              {isSuperAdmin ? 'Perpétuo' : (profile?.plan_expires_at ? `Expira em: ${new Date(profile.plan_expires_at).toLocaleDateString('pt-BR')}` : 'Teste Grátis')}
+              {isSuperAdmin ? 'Perpétuo' : (profile?.plan === 'free_trial' ? '3 Dias de Teste Grátis' : (profile?.plan_expires_at ? `Expira em: ${new Date(profile.plan_expires_at).toLocaleDateString('pt-BR')}` : 'Ativo'))}
             </span>
           </div>
 

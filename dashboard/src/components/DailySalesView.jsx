@@ -496,8 +496,8 @@ export default function DailySalesView({
       )}
 
       {/* Grid de Métricas Financeiras Reais Bento Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-        <div className="rounded-[24px] bg-white dark:bg-[#121724] border border-slate-200/70 dark:border-slate-800 p-5 shadow-xs">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <div className="rounded-[24px] bg-white dark:bg-[#121724] border border-slate-200/70 dark:border-slate-800 p-4 sm:p-5 shadow-xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Comissões Reais</span>
           <div className="mt-2 text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums">
             {totalCommission.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}

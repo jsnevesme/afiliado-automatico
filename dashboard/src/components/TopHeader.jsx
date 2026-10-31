@@ -1,5 +1,5 @@
 import React from 'react'
-import { RefreshCw, Plus, Search, Sun, Moon, Globe, ExternalLink, LogOut } from 'lucide-react'
+import { RefreshCw, Plus, Search, Sun, Moon, Globe, ExternalLink, LogOut, Menu } from 'lucide-react'
 
 export default function TopHeader({
   currentTab,
@@ -12,7 +12,8 @@ export default function TopHeader({
   darkMode,
   onToggleDarkMode,
   syncing,
-  onGoToLanding
+  onGoToLanding,
+  onOpenMobileMenu
 }) {
   const tabTitles = {
     analytics: { section: 'Visão Geral', title: 'Dashboard de Operações' },
@@ -29,14 +30,22 @@ export default function TopHeader({
   const current = tabTitles[currentTab] || { section: 'Painel', title: 'Dashboard' }
 
   return (
-    <header className="h-14 flex-shrink-0 border-b border-slate-200/60 dark:border-slate-800/60 bg-[#F7F8FA]/90 dark:bg-[#0E131F]/90 backdrop-blur-md px-5 sm:px-6 flex items-center justify-between transition-colors z-10">
-      {/* Esquerda: Saudação / Breadcrumb estilo SETO & Healthy */}
-      <div className="flex items-center gap-2.5">
-        <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">
+    <header className="h-14 flex-shrink-0 border-b border-slate-200/60 dark:border-slate-800/60 bg-[#F7F8FA]/90 dark:bg-[#0E131F]/90 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between transition-colors z-10 gap-2">
+      {/* Esquerda: Hamburger Button Mobile + Saudação / Breadcrumb */}
+      <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
+        <button
+          type="button"
+          onClick={onOpenMobileMenu}
+          className="md:hidden flex items-center justify-center h-8 w-8 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors -ml-1 mr-0.5 shrink-0"
+          title="Abrir menu"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <span className="hidden sm:inline text-xs font-semibold text-slate-400 dark:text-slate-500 whitespace-nowrap">
           {current.section}
         </span>
-        <span className="text-slate-300 dark:text-slate-700 font-light">/</span>
-        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-tight">
+        <span className="hidden sm:inline text-slate-300 dark:text-slate-700 font-light">/</span>
+        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-tight truncate">
           {current.title}
         </span>
       </div>

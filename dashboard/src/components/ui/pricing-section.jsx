@@ -22,18 +22,19 @@ import { motion } from 'motion/react'
 const plans = [
   {
     name: 'Starter',
-    badge: 'Iniciante',
-    description: 'Ideal para validar suas primeiras ofertas automáticas e começar a faturar comissões.',
+    badge: '3 DIAS GRÁTIS',
+    description: 'Experimente por 3 dias sem pagar nada. Ideal para validar suas primeiras ofertas automáticas e faturar comissões.',
     price: 39.90, // R$ 39,90/mês
     yearlyInstallment: 20.65, // 12x de R$ 20,65 no checkout Cakto
     yearlyTotal: 199.90, // R$ 199,90 à vista no checkout Cakto
     discountBadge: 'Economize 58%',
-    buttonText: 'Começar no Starter',
+    buttonText: 'Começar 3 Dias Grátis',
     buttonVariant: 'outline',
     checkoutMonthly: 'https://pay.cakto.com.br/fajichq_1260860',
     checkoutYearly: 'https://pay.cakto.com.br/bi9dwyf',
     popular: false,
     features: [
+      { text: '3 Dias de Teste Grátis inclusos', icon: <Sparkles size={18} className="text-emerald-500" /> },
       { text: '1 Grupo de WhatsApp cadastrado', icon: <Layers size={18} className="text-blue-500" /> },
       { text: 'Disparos de apenas 1 plataforma (ex: Mercado Livre)', icon: <Send size={18} className="text-amber-500" /> },
       { text: 'IA CopyStudio integrada para copys de alta conversão', icon: <Sparkles size={18} className="text-blue-500" /> },
@@ -42,6 +43,7 @@ const plans = [
     ],
     includes: [
       'O que está incluso:',
+      '3 dias de teste grátis sem compromisso',
       '1 grupo de WhatsApp conectado',
       'Disparos de 1 plataforma selecionada',
       'Extrator instantâneo de dados e fotos',
@@ -196,8 +198,18 @@ export default function PricingSection() {
 
       <div className="text-center mb-8 max-w-3xl mx-auto space-y-3 relative z-10">
         <TimelineContent
-          as="span"
+          as="div"
           animationNum={0}
+          timelineRef={pricingRef}
+          className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-xs font-extrabold text-emerald-700 dark:text-emerald-300 shadow-2xs mb-2"
+        >
+          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>3 DIAS DE TESTE GRÁTIS NO PLANO STARTER • SEM COMPROMISSO</span>
+        </TimelineContent>
+
+        <TimelineContent
+          as="span"
+          animationNum={1}
           timelineRef={pricingRef}
           className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 block"
         >
