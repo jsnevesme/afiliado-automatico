@@ -4,6 +4,7 @@ import TopHeader from './components/TopHeader'
 import Sidebar from './components/Sidebar'
 import AnalyticsView from './components/AnalyticsView'
 import FavoritesView from './components/FavoritesView'
+import RadarView from './components/RadarView'
 import DailySalesView from './components/DailySalesView'
 import AiConsultantView from './components/AiConsultantView'
 import DispatchesHistoryView from './components/DispatchesHistoryView'
@@ -416,6 +417,31 @@ export default function App() {
     setTab('dailysales')
   }
 
+  // 8. Salvar ou remover oferta favoritada diretamente do Radar
+  const handleSaveFavoriteFromRadar = (product) => {
+    const exists = favorites.some((f) => f.url === product.url || f.title === product.title)
+    if (exists) {
+      const updated = favorites.filter((f) => f.url !== product.url && f.title !== product.title)
+      handleUpdateFavorites(updated)
+      return
+    }
+
+    const newFav = {
+      id: 'fav_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+      title: product.title,
+      price: product.price,
+      originalPrice: product.originalPrice,
+      discount: product.discount,
+      imageUrl: product.imageUrl,
+      url: product.url,
+      platform: product.platform,
+      folderId: 'fld_achados',
+      createdAt: new Date().toISOString()
+    }
+    const updated = [newFav, ...favorites]
+    handleUpdateFavorites(updated)
+  }
+
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut()
@@ -573,6 +599,16 @@ export default function App() {
                   setPrefilledProduct(null)
                   setTab('dailysales')
                 }}
+              />
+            )}
+
+            {currentTab === 'radar' && (
+              <RadarView
+                profile={profile}
+                user={user}
+                favorites={favorites}
+                onSaveFavorite={handleSaveFavoriteFromRadar}
+                onLaunchSale={handleLaunchSaleWithProduct}
               />
             )}
 

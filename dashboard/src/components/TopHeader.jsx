@@ -17,6 +17,7 @@ export default function TopHeader({
 }) {
   const tabTitles = {
     analytics: { section: 'Visão Geral', title: 'Dashboard de Operações' },
+    radar: { section: 'Achadinhos', title: 'Radar de Ofertas & Bugs de Preço' },
     favorites: { section: 'Organização', title: 'Favoritos' },
     dailysales: { section: 'Financeiro', title: 'Registro de Vendas & Comissões' },
     aiconsultant: { section: 'IA & Estratégia', title: 'Consultor de IA' },

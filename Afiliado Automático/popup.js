@@ -123,6 +123,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const randomIntervalCheckbox = document.getElementById('randomIntervalCheckbox');
   const btnStartMassDispatch = document.getElementById('btnStartMassDispatch');
   const btnStartMassText = document.getElementById('btnStartMassText');
+  const antibanPresetBtns = document.querySelectorAll('.antiban-preset-btn');
+  const customIntervalsRow = document.getElementById('customIntervalsRow');
 
   // Resultados
   const resultsContainer = document.getElementById('results');
@@ -163,6 +165,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const favTotalSavedCount = document.getElementById('favTotalSavedCount');
   const favoritesTimelineContainer = document.getElementById('favoritesTimelineContainer');
   const favFoldersBar = document.getElementById('favFoldersBar');
+  const btnFavScheduleSetting = document.getElementById('btnFavScheduleSetting');
+  const favSchedulePresetLabel = document.getElementById('favSchedulePresetLabel');
 
   // Botão de Favoritar Produto Atual
   const btnFavCurrentProduct = document.getElementById('btnFavCurrentProduct');
@@ -350,6 +354,59 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /**
+   * Gerencia os modos pré-definidos de cadência anti-bloqueio (Ideia 3)
+   */
+  let currentAntiBanPreset = 'safe';
+
+  function applyAntiBanPreset(presetId, customMin = null, customMax = null, saveStorage = true) {
+    currentAntiBanPreset = presetId || 'safe';
+
+    let minVal = 25;
+    let maxVal = 45;
+    let label = '🛡️ Seguro (25-45m)';
+
+    if (currentAntiBanPreset === 'fast') {
+      minVal = 10;
+      maxVal = 20;
+      label = '⚡ Rápido (10-20m)';
+    } else if (currentAntiBanPreset === 'safe') {
+      minVal = 25;
+      maxVal = 45;
+      label = '🛡️ Seguro (25-45m)';
+    } else if (currentAntiBanPreset === 'spaced') {
+      minVal = 45;
+      maxVal = 90;
+      label = '🌙 Dia Todo (45-90m)';
+    } else if (currentAntiBanPreset === 'custom') {
+      minVal = customMin !== null ? parseInt(customMin, 10) : (minIntervalInput ? parseInt(minIntervalInput.value, 10) || 25 : 25);
+      maxVal = customMax !== null ? parseInt(customMax, 10) : (maxIntervalInput ? parseInt(maxIntervalInput.value, 10) || 45 : 45);
+      label = `⚙️ Manual (${minVal}-${maxVal}m)`;
+    }
+
+    if (minIntervalInput) minIntervalInput.value = minVal;
+    if (maxIntervalInput) maxIntervalInput.value = maxVal;
+
+    if (antibanPresetBtns && antibanPresetBtns.length > 0) {
+      antibanPresetBtns.forEach(btn => {
+        const p = btn.getAttribute('data-preset');
+        btn.classList.toggle('active', p === currentAntiBanPreset);
+      });
+    }
+
+    if (favSchedulePresetLabel) {
+      favSchedulePresetLabel.textContent = label;
+    }
+
+    if (saveStorage) {
+      chrome.storage.local.set({
+        ml_antiban_preset: currentAntiBanPreset,
+        ml_min_interval: minVal,
+        ml_max_interval: maxVal
+      });
+    }
+  }
+
+  /**
    * Carrega os dados salvos no chrome.storage.local e sincroniza com a nuvem
    */
   async function loadStoredData() {
@@ -407,14 +464,21 @@ document.addEventListener('DOMContentLoaded', () => {
         'ml_copy_style',
         'ml_custom_copy',
         'ml_custom_commission_rates',
-        'ml_default_commission_rate'
+        'ml_default_commission_rate',
+        'ml_antiban_preset',
+        'ml_min_interval',
+        'ml_max_interval',
+        'ml_random_interval'
       ]);
 
       affiliateTag = (data.ml_affiliate_tag || '').trim();
-      if (affiliateTag === 'jonathansneves' && (!data.user_email || data.user_email.toLowerCase() !== 'jsnevesme@gmail.com')) {
-        affiliateTag = '';
-      }
       affiliateTagInput.value = affiliateTag;
+
+      // Inicializa modo anti-bloqueio configurado
+      applyAntiBanPreset(data.ml_antiban_preset || 'safe', data.ml_min_interval || 25, data.ml_max_interval || 45, false);
+      if (randomIntervalCheckbox && data.ml_random_interval !== undefined) {
+        randomIntervalCheckbox.checked = data.ml_random_interval !== false;
+      }
 
       amazonAffiliateTag = (data.amazon_affiliate_tag || '').trim();
       if (amazonTagInput) amazonTagInput.value = amazonAffiliateTag;
@@ -767,6 +831,53 @@ document.addEventListener('DOMContentLoaded', () => {
           massConfigPanel.classList.add('hidden');
           toggleMassConfigBtn.classList.remove('active');
         }
+      });
+    }
+
+    // Presets Anti-Bloqueio
+    if (antibanPresetBtns && antibanPresetBtns.length > 0) {
+      antibanPresetBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const p = btn.getAttribute('data-preset');
+          applyAntiBanPreset(p, null, null, true);
+          const toastText = p === 'fast'
+            ? '⚡ Modo Rápido (10 a 20 min)'
+            : p === 'spaced'
+            ? '🌙 Modo Dia Todo (45 a 90 min)'
+            : p === 'custom'
+            ? '⚙️ Modo Personalizado'
+            : '🛡️ Modo Seguro Anti-Ban (25 a 45 min)';
+          showToast(`Cadência: ${toastText}`, '🛡️');
+        });
+      });
+    }
+
+    if (minIntervalInput) {
+      minIntervalInput.addEventListener('change', () => {
+        applyAntiBanPreset('custom', minIntervalInput.value, maxIntervalInput.value, true);
+      });
+    }
+    if (maxIntervalInput) {
+      maxIntervalInput.addEventListener('change', () => {
+        applyAntiBanPreset('custom', minIntervalInput.value, maxIntervalInput.value, true);
+      });
+    }
+
+    if (randomIntervalCheckbox) {
+      randomIntervalCheckbox.addEventListener('change', () => {
+        chrome.storage.local.set({ ml_random_interval: randomIntervalCheckbox.checked });
+      });
+    }
+
+    // Botão de Cadência na Barra de Favoritos
+    if (btnFavScheduleSetting) {
+      btnFavScheduleSetting.addEventListener('click', () => {
+        const order = ['safe', 'fast', 'spaced'];
+        const nextIdx = (order.indexOf(currentAntiBanPreset) + 1) % order.length;
+        const nextPreset = order[nextIdx] || 'safe';
+        applyAntiBanPreset(nextPreset, null, null, true);
+        const labelText = favSchedulePresetLabel ? favSchedulePresetLabel.textContent : nextPreset;
+        showToast(`Cadência da fila: ${labelText}`, '⏱️');
       });
     }
 
@@ -4682,6 +4793,10 @@ document.addEventListener('DOMContentLoaded', () => {
     btnDispatchSelectedFavorites.disabled = true;
 
     try {
+      const minInterval = parseInt(minIntervalInput ? minIntervalInput.value : '25', 10) || 25;
+      const maxInterval = parseInt(maxIntervalInput ? maxIntervalInput.value : '45', 10) || 45;
+      const isRandom = randomIntervalCheckbox ? randomIntervalCheckbox.checked : true;
+
       const resp = await chrome.runtime.sendMessage({
         action: 'start_mass_dispatch',
         products: selectedItems,
@@ -4690,12 +4805,12 @@ document.addEventListener('DOMContentLoaded', () => {
         targetGroup: selectedGroups.join(', '),
         affiliateTag: affiliateTagInput.value.trim() || affiliateTag,
         copyStyle: currentCopyStyle,
-        minIntervalMinutes: 60,
-        maxIntervalMinutes: 180,
-        minInterval: 60,
-        maxInterval: 180,
-        randomInterval: true,
-        isRandom: true
+        minIntervalMinutes: minInterval,
+        maxIntervalMinutes: maxInterval,
+        minInterval: minInterval,
+        maxInterval: maxInterval,
+        randomInterval: isRandom,
+        isRandom: isRandom
       });
 
       if (resp && resp.success) {

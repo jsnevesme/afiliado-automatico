@@ -421,14 +421,42 @@
           </button>
         </div>
 
-        <!-- Painel Expansível de Configuração do Disparo em Massa -->
+        <!-- Painel Expansível de Configuração do Disparo em Massa / Fila Inteligente -->
         <div id="massConfigPanel" class="mass-config-panel hidden">
           <div class="mass-panel-inner">
-            <div class="interval-inputs-row">
+            <!-- Modos Pré-definidos Anti-Bloqueio WhatsApp -->
+            <div class="antiban-presets-wrapper">
+              <span class="antiban-presets-title">🛡️ Cadência Anti-Bloqueio do WhatsApp:</span>
+              <div class="antiban-presets-grid">
+                <button type="button" class="antiban-preset-btn" data-preset="fast" data-min="10" data-max="20" title="Cadência rápida para horários de pico ou promoções relâmpago">
+                  <span class="preset-icon">⚡</span>
+                  <span class="preset-name">Rápido</span>
+                  <span class="preset-sub">10-20 min</span>
+                </button>
+                <button type="button" class="antiban-preset-btn active" data-preset="safe" data-min="25" data-max="45" title="Recomendado: simula comportamento orgânico e previne flags do WhatsApp">
+                  <span class="preset-badge">RECOMENDADO</span>
+                  <span class="preset-icon">🛡️</span>
+                  <span class="preset-name">Seguro</span>
+                  <span class="preset-sub">25-45 min</span>
+                </button>
+                <button type="button" class="antiban-preset-btn" data-preset="spaced" data-min="45" data-max="90" title="Cadência ultra suave e espaçada ao longo do dia">
+                  <span class="preset-icon">🌙</span>
+                  <span class="preset-name">Dia Todo</span>
+                  <span class="preset-sub">45-90 min</span>
+                </button>
+                <button type="button" class="antiban-preset-btn" data-preset="custom" title="Ajuste manual personalizado">
+                  <span class="preset-icon">⚙️</span>
+                  <span class="preset-name">Manual</span>
+                  <span class="preset-sub">Livre</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="interval-inputs-row" id="customIntervalsRow">
               <div class="interval-field">
                 <span class="interval-title">Intervalo Mínimo:</span>
                 <div class="input-with-unit">
-                  <input type="number" id="minIntervalInput" min="1" max="180" value="10" class="interval-num-input">
+                  <input type="number" id="minIntervalInput" min="1" max="180" value="25" class="interval-num-input">
                   <span class="unit-tag">min</span>
                 </div>
               </div>
@@ -436,7 +464,7 @@
               <div class="interval-field">
                 <span class="interval-title">Intervalo Máximo:</span>
                 <div class="input-with-unit">
-                  <input type="number" id="maxIntervalInput" min="1" max="180" value="30" class="interval-num-input">
+                  <input type="number" id="maxIntervalInput" min="1" max="180" value="45" class="interval-num-input">
                   <span class="unit-tag">min</span>
                 </div>
               </div>
@@ -444,16 +472,16 @@
 
             <label class="random-toggle-label">
               <input type="checkbox" id="randomIntervalCheckbox" checked>
-              <span class="random-toggle-text">🎲 Intervalos aleatórios (anti-bloqueio WhatsApp)</span>
+              <span class="random-toggle-text">🎲 Intervalos flutuantes com jitter (anti-detecção Meta)</span>
             </label>
 
             <div class="mass-hint-box">
-              <span>💡 A IA gerará copies persuasivas exclusivas e individualizadas para cada produto disparado.</span>
+              <span>💡 A IA gera uma copy 100% exclusiva para cada oferta disparada, variando tom e gatilhos para máxima conversão.</span>
             </div>
 
             <button id="btnStartMassDispatch" class="btn-start-mass-action">
               <svg viewBox="0 0 24 24"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2z"/></svg>
-              <span id="btnStartMassText">Iniciar Disparo em Massa</span>
+              <span id="btnStartMassText">Iniciar Fila Anti-Bloqueio</span>
             </button>
           </div>
         </div>
@@ -517,6 +545,10 @@
           </div>
           <div class="fav-toolbar-bottom">
             <span id="favTotalSavedCount" class="fav-total-badge">0 salvas</span>
+            <button type="button" id="btnFavScheduleSetting" class="fav-schedule-pill" title="Intervalo anti-bloqueio configurado para a fila">
+              <span id="favSchedulePresetLabel">🛡️ Seguro Anti-Ban (25-45m)</span>
+              <span style="font-size: 10px; opacity: 0.8;">▾</span>
+            </button>
           </div>
         </div>
 
