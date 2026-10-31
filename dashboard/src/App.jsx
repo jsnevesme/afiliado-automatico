@@ -14,6 +14,7 @@ import ExtensionDownloadView from './components/ExtensionDownloadView'
 import AuthModal from './components/AuthModal'
 import ProfileEditModal from './components/ProfileEditModal'
 import LandingPageView from './components/LandingPage/LandingPageView'
+import { Sparkles, Lock, ArrowRight, ShieldCheck } from 'lucide-react'
 
 export default function App() {
   const [user, setUser] = useState(null)
@@ -589,12 +590,52 @@ export default function App() {
             )}
 
             {currentTab === 'aiconsultant' && (
-              <AiConsultantView
-                profile={profile}
-                sales={sales}
-                dispatches={dispatches}
-                user={user}
-              />
+              (!isSuperAdmin && (profile?.plan === 'starter' || profile?.plan === 'free_trial' || !profile?.plan)) ? (
+                <div className="max-w-2xl mx-auto my-10 p-8 sm:p-10 bg-white dark:bg-[#121724] border border-slate-200/80 dark:border-slate-800 rounded-3xl text-center space-y-6 shadow-xl">
+                  <div className="h-16 w-16 mx-auto rounded-3xl bg-purple-50 dark:bg-purple-950/80 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                    <Sparkles className="h-8 w-8" />
+                  </div>
+                  <div className="space-y-2">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300">
+                      <Lock className="h-3 w-3" />
+                      Exclusivo Planos Pro & Ultra
+                    </span>
+                    <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                      Consultor Estratégico de IA
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
+                      O Consultor Estratégico de IA analisa nichos de mercado em alta, indica produtos com grande margem de comissão e orienta seu crescimento diário no piloto automático.
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-800/60 text-xs text-amber-800 dark:text-amber-300 text-left space-y-1">
+                    <div className="font-bold flex items-center gap-1.5">
+                      <ShieldCheck className="h-4 w-4" />
+                      <span>Plano Atual: {profile?.plan === 'free_trial' ? 'Starter (3 Dias de Teste Grátis)' : 'Starter'}</span>
+                    </div>
+                    <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                      O plano Starter inclui 1 plataforma fixa, 1 grupo de WhatsApp e a ferramenta CopyStudio. O Consultor de IA é desbloqueado no Plano Pro ou Ultra.
+                    </p>
+                  </div>
+                  <div className="pt-2">
+                    <a
+                      href="https://pay.cakto.com.br/x3whytm"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:opacity-95 text-white font-extrabold text-xs shadow-lg shadow-blue-500/25 transition-all"
+                    >
+                      <span>Desbloquear no Plano Pro (R$ 69,90/mês)</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <AiConsultantView
+                  profile={profile}
+                  sales={sales}
+                  dispatches={dispatches}
+                  user={user}
+                />
+              )
             )}
 
             {currentTab === 'history' && (

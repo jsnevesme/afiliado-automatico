@@ -258,10 +258,10 @@ export default function AiConsultantView({ profile, sales, dispatches, user }) {
 
               {/* Saudação Elegante (Idêntico à Imagem 2 SETO) */}
               <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                Welcome, {firstName}!
+                Olá, {firstName}!
               </h1>
               <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400 font-normal mt-1.5 mb-8">
-                How can I help you today?
+                Como posso ajudar a impulsionar suas comissões hoje?
               </p>
 
               {/* 3 Bento Cards Horizontais com Ícones 3D (Idêntico à Imagem 2 SETO) */}

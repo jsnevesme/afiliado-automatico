@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Afiliado Mercado Livre - Content Script para páginas do Mercado Livre
  * 1. Fornece extração robusta do produto aberto (PDP) e resultados de busca.
  * 2. Injeta botão flutuante "⚡ Disparar Oferta WhatsApp" diretamente nas páginas de produtos.
@@ -988,7 +988,7 @@
   // GERAÇÃO OFICIAL DE LINK meli.la
   // =========================================================================
   async function generateMeliLaLink(productUrl, affiliateTag) {
-    const cleanTag = (affiliateTag || 'jonathansneves').trim();
+    const cleanTag = (affiliateTag || '').trim();
 
     // 1. MÉTODO A: Procura meli.la já presente no DOM (inputs, textareas, links, parágrafos)
     const existingElements = Array.from(document.querySelectorAll('input, textarea, a, p, span'));

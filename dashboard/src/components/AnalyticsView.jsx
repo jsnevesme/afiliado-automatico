@@ -104,7 +104,7 @@ export default function AnalyticsView({ profile, user, dispatches = [], sales = 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            Welcome, {firstName}!
+            Olá, {firstName}!
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
             Aqui está a visão unificada de receita, comissões e atividade real dos seus canais de vendas.

@@ -1524,10 +1524,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       const platTag = product.platform === 'amazon'
-        ? (amazonAffiliateTag || (amazonTagInput ? amazonTagInput.value.trim() : '') || 'casaldosach09-20')
+        ? (amazonAffiliateTag || (amazonTagInput ? amazonTagInput.value.trim() : ''))
         : (product.platform === 'shopee'
             ? (shopeeAffiliateTag || (shopeeTagInput ? shopeeTagInput.value.trim() : ''))
-            : (affiliateTag || 'jonathansneves'));
+            : (affiliateTag || ''));
       const dummyLink = buildAffiliateLink(product, platTag);
       const res = await chrome.runtime.sendMessage({
         action: 'generate_ai_copy',
@@ -1545,10 +1545,10 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       console.warn('[Afiliado Automático] Falha ao gerar copy:', err);
       const platTag = product.platform === 'amazon'
-        ? (amazonAffiliateTag || (amazonTagInput ? amazonTagInput.value.trim() : '') || 'casaldosach09-20')
+        ? (amazonAffiliateTag || (amazonTagInput ? amazonTagInput.value.trim() : ''))
         : (product.platform === 'shopee'
             ? (shopeeAffiliateTag || (shopeeTagInput ? shopeeTagInput.value.trim() : ''))
-            : (affiliateTag || 'jonathansneves'));
+            : (affiliateTag || ''));
       const dummyLink = buildAffiliateLink(product, platTag);
       aiCustomCopyTextarea.value = await buildFallbackCopy(currentCopyStyle, product, dummyLink);
       showToast('Usando template padrão do modelo selecionado.', 'ℹ️');
@@ -1585,10 +1585,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       const platTag = product.platform === 'amazon'
-        ? (amazonAffiliateTag || (amazonTagInput ? amazonTagInput.value.trim() : '') || 'casaldosach09-20')
+        ? (amazonAffiliateTag || (amazonTagInput ? amazonTagInput.value.trim() : ''))
         : (product.platform === 'shopee'
             ? (shopeeAffiliateTag || (shopeeTagInput ? shopeeTagInput.value.trim() : ''))
-            : (affiliateTag || 'jonathansneves'));
+            : (affiliateTag || ''));
       const dummyLink = buildAffiliateLink(product, platTag);
       const res = await chrome.runtime.sendMessage({
         action: 'generate_ai_copy',
@@ -1606,10 +1606,10 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       console.warn('[Afiliado ML] Falha ao gerar copy dos favoritos:', err);
       const platTag = product.platform === 'amazon'
-        ? (amazonAffiliateTag || (amazonTagInput ? amazonTagInput.value.trim() : '') || 'casaldosach09-20')
+        ? (amazonAffiliateTag || (amazonTagInput ? amazonTagInput.value.trim() : ''))
         : (product.platform === 'shopee'
             ? (shopeeAffiliateTag || (shopeeTagInput ? shopeeTagInput.value.trim() : ''))
-            : (affiliateTag || 'jonathansneves'));
+            : (affiliateTag || ''));
       const dummyLink = buildAffiliateLink(product, platTag);
       favAiCustomCopyTextarea.value = await buildFallbackCopy(currentCopyStyle, product, dummyLink);
       showToast('Usando template padrão do modelo selecionado.', 'ℹ️');
@@ -3089,10 +3089,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const platTag = product.platform === 'amazon' 
-      ? (amazonAffiliateTag || (amazonTagInput ? amazonTagInput.value.trim() : '') || 'casaldosach09-20')
+      ? (amazonAffiliateTag || (amazonTagInput ? amazonTagInput.value.trim() : ''))
       : (product.platform === 'shopee' 
           ? (shopeeAffiliateTag || (shopeeTagInput ? shopeeTagInput.value.trim() : ''))
-          : (affiliateTag || 'jonathansneves'));
+          : (affiliateTag || ''));
     const affiliateLink = buildAffiliateLink(product, platTag);
 
     // Se o usuário editou a copy na prévia, usa-a; se não, a IA gera automaticamente
@@ -3183,12 +3183,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (plat === 'amazon') {
       if (rawUrl.includes('amzn.to/') || rawUrl.includes('link.amazon/') || rawUrl.includes('a.co/')) return rawUrl;
-      const amzTag = (overrideTag || amazonAffiliateTag || (amazonTagInput ? amazonTagInput.value.trim() : '') || 'casaldosach09-20').trim();
+      const amzTag = (overrideTag || amazonAffiliateTag || (amazonTagInput ? amazonTagInput.value.trim() : '')).trim();
       const asinMatch = (typeof productOrUrl === 'object' && productOrUrl.asin ? productOrUrl.asin : rawUrl).match(/(?:\/dp\/|\/gp\/product\/|\/ASIN\/|^)([A-Z0-9]{10})/i);
       const asin = asinMatch ? asinMatch[1].toUpperCase() : null;
       if (asin) {
-        return `https://www.amazon.com.br/dp/${asin}?tag=${encodeURIComponent(amzTag)}`;
+        return amzTag ? `https://www.amazon.com.br/dp/${asin}?tag=${encodeURIComponent(amzTag)}` : `https://www.amazon.com.br/dp/${asin}`;
       }
+      if (!amzTag) return cleanBase;
       const sep = cleanBase.includes('?') ? '&' : '?';
       return `${cleanBase}${sep}tag=${encodeURIComponent(amzTag)}`;
     }
@@ -3201,7 +3202,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (shpTag.includes('careers.') || shpTag.includes('help.') || shpTag.includes('/legal/')) {
         shpTag = '';
       }
-      const affiliateId = shpTag && !shpTag.startsWith('http') ? shpTag : 'an_18360060101';
+      if (!shpTag) return cleanProd;
+      const affiliateId = !shpTag.startsWith('http') ? shpTag : '';
       if (shpTag && shpTag.startsWith('http')) {
         return shpTag.includes('{url}') ? shpTag.replace('{url}', encodeURIComponent(cleanProd)) : `${shpTag}${encodeURIComponent(cleanProd)}`;
       }
@@ -3210,7 +3212,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Mercado Livre
-    const mlTag = (overrideTag || (affiliateTagInput ? affiliateTagInput.value.trim() : '') || affiliateTag || 'jonathansneves').trim();
+    const mlTag = (overrideTag || (affiliateTagInput ? affiliateTagInput.value.trim() : '') || affiliateTag || '').trim();
+    if (!mlTag) return cleanBase;
     if (mlTag.includes('{url}')) {
       return mlTag.replace('{url}', encodeURIComponent(cleanBase));
     }

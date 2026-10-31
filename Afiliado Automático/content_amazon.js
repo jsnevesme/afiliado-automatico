@@ -1,4 +1,4 @@
-/**
+﻿/**
  * =============================================================================
  * AFILIADO AUTOMÁTICO - CONTENT SCRIPT: AMAZON BRASIL
  * =============================================================================
@@ -669,7 +669,7 @@
       // 1. Tenta obter o link curto oficial do SiteStripe DIRETAMENTE com o clique do usuário!
       try {
         const stored = await chrome.storage.local.get(['amazon_affiliate_tag']);
-        const tag = (stored.amazon_affiliate_tag || 'casaldosach09-20').trim();
+        const tag = (stored.amazon_affiliate_tag || '').trim();
         const shortLink = await generateAmazonSiteStripeLink(product.asin, tag);
         if (shortLink && (shortLink.includes('link.amazon/') || shortLink.includes('amzn.to/') || shortLink.includes('a.co/'))) {
           product.affiliateShortLink = shortLink;
@@ -1011,7 +1011,7 @@
     }
 
     const stored = await chrome.storage.local.get(['amazon_affiliate_tag']);
-    const activeTag = (tag || stored.amazon_affiliate_tag || 'casaldosach09-20').trim();
+    const activeTag = (tag || stored.amazon_affiliate_tag || '').trim();
 
     try {
       // 1. Tenta primariamente endpoint oficial SiteStripe no contexto da própria página (first-party com cookies)
@@ -1230,7 +1230,7 @@
 
     // 5. Fallback Canônico Oficial Amazon com a Tag salva ou padrão (comissão 100% garantida)
     const fallbackStored = await chrome.storage.local.get(['amazon_affiliate_tag']);
-    const cleanTag = (tag || fallbackStored.amazon_affiliate_tag || 'casaldosach09-20').trim();
+    const cleanTag = (tag || fallbackStored.amazon_affiliate_tag || '').trim();
     const productAsin = asin || getAsinFromUrl(window.location.href) || getAsinFromDom();
     if (productAsin) {
       return `https://www.amazon.com.br/dp/${productAsin}?tag=${encodeURIComponent(cleanTag)}`;
@@ -1299,7 +1299,7 @@
 
   function ensureSiteStripeSelectsAndRadios(modal, tag) {
     try {
-      const targetTag = (tag || 'casaldosach09-20').trim();
+      const targetTag = (tag || '').trim();
       const selects = Array.from(modal.querySelectorAll('select'));
       for (const sel of selects) {
         const options = Array.from(sel.options);

@@ -16,7 +16,8 @@ import {
   ArrowRight,
   BookmarkCheck,
   Download,
-  X
+  X,
+  Lock
 } from 'lucide-react'
 import ChromeLogo from './ChromeLogo'
 
@@ -69,11 +70,11 @@ export default function Sidebar({
     ultra: 'Plano Ultra',
     pro: 'Plano Pro',
     starter: 'Plano Starter',
-    free_trial: 'Free Trial'
+    free_trial: 'Starter (3 Dias Grátis)'
   }
 
   const currentPlan = isSuperAdmin ? 'superadmin' : (profile?.plan || 'free_trial')
-  const planLabel = planLabels[currentPlan] || 'Plano'
+  const planLabel = planLabels[currentPlan] || 'Plano Starter'
 
   const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Afiliado'
   const avatarUrl = profile?.avatar_url || user?.user_metadata?.avatar_url
@@ -175,6 +176,7 @@ export default function Sidebar({
               {aiItems.map((item) => {
                 const Icon = item.icon
                 const isActive = currentTab === item.id
+                const isLockedAi = item.id === 'aiconsultant' && !isSuperAdmin && (profile?.plan === 'starter' || profile?.plan === 'free_trial' || !profile?.plan)
 
                 return (
                   <button
@@ -191,10 +193,17 @@ export default function Sidebar({
                       <span>{item.label}</span>
                     </div>
 
-                    {item.badge && !isActive && (
-                      <span className="rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 px-2 py-0.5 text-[9px] font-bold">
-                        {item.badge}
+                    {isLockedAi ? (
+                      <span className="flex items-center gap-1 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 px-2 py-0.5 text-[9px] font-black border border-amber-200/60 dark:border-amber-800/60">
+                        <Lock className="h-2.5 w-2.5" />
+                        PRO
                       </span>
+                    ) : (
+                      item.badge && !isActive && (
+                        <span className="rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 px-2 py-0.5 text-[9px] font-bold">
+                          {item.badge}
+                        </span>
+                      )
                     )}
                   </button>
                 )

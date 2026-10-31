@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Afiliado Mercado Livre - Background Service Worker (Manifest V3)
  * Motor de Busca Inteligente, Integração Groq/Llama AI, Sincronização WhatsApp Web,
  * Geração Oficial meli.la e Disparo Automatizado.
@@ -1320,7 +1320,7 @@ async function fetchImageAsBase64(imageUrl) {
 async function generateMeliShortLink(productUrl, affiliateTag) {
   if (!productUrl) return null;
   const cleanUrl = productUrl.split('?')[0].split('#')[0];
-  const cleanTag = (affiliateTag || 'jonathansneves').trim();
+  const cleanTag = (affiliateTag || '').trim();
 
   // 1. Verifica cache local do chrome.storage
   const cacheKey = `meli_short_${cleanUrl}`;
@@ -1451,7 +1451,7 @@ async function generateMeliShortLink(productUrl, affiliateTag) {
  * Clica no botão azul "Compartilhar" na barra preta de afiliados e extrai do modal
  */
 async function extractMeliLaInTabContext(targetTag) {
-  const cleanTag = (targetTag || 'jonathansneves').trim();
+  const cleanTag = (targetTag || '').trim();
 
   // 1. Procura se meli.la já está presente no DOM da página
   const allInputs = Array.from(document.querySelectorAll('input, textarea, a, p, span'));
@@ -1781,7 +1781,7 @@ function buildAmazonSiteStripeLongUrl({ asin, storeId, trackingId }) {
  */
 async function fetchAmazonSiteStripeDirect(asin, tag) {
   try {
-    const tId = (tag || 'casaldosach09-20').trim();
+    const tId = (tag || '').trim();
     const storeCandidates = [tId];
     if (tId.includes('-20')) {
       const baseName = tId.split('-')[0].replace(/\d+$/, '');
@@ -1824,7 +1824,7 @@ async function fetchAmazonSiteStripeDirect(asin, tag) {
  */
 async function extractAmazonSiteStripeInTab(asin, amzTag) {
   const currentAsin = asin || (window.location.pathname.match(/(?:\/dp\/|\/gp\/product\/|\/ASIN\/|^)([A-Z0-9]{10})/i)?.[1]?.toUpperCase());
-  const targetTag = (amzTag || 'casaldosach09-20').trim();
+  const targetTag = (amzTag || '').trim();
 
   // 1. Limpa URL para remover referências poluídas que causam erro no encurtador
   if (currentAsin && (window.location.pathname.includes('/ref=') || window.location.search.length > 0)) {
@@ -2070,7 +2070,7 @@ async function generateAmazonShortLink(productData, amzTag) {
   }
 
   const stored = await chrome.storage.local.get(['amazon_affiliate_tag']);
-  const cleanTag = (amzTag || stored.amazon_affiliate_tag || 'casaldosach09-20').trim();
+  const cleanTag = (amzTag || stored.amazon_affiliate_tag || '').trim();
 
   // 1. Verifica cache local do chrome.storage
   const cacheKey = asin ? `amz_short_${asin}` : `amz_short_${rawUrl.split('?')[0]}`;
@@ -2683,7 +2683,7 @@ async function handleSendOffer({ productData, affiliateLink, affiliateTag, group
   let tag = affiliateTag;
   if (!tag) {
     const data = await chrome.storage.local.get(['ml_affiliate_tag']);
-    tag = data.ml_affiliate_tag || 'jonathansneves';
+    tag = (data.ml_affiliate_tag || '').trim();
   }
 
   // 1. Limpa a URL base do produto
@@ -2715,7 +2715,7 @@ async function handleSendOffer({ productData, affiliateLink, affiliateTag, group
 
   if (isAmazon) {
     const amzData = await chrome.storage.local.get(['amazon_affiliate_tag']);
-    const amzTag = (amzData.amazon_affiliate_tag || '').trim() || 'casaldosach09-20';
+    const amzTag = (amzData.amazon_affiliate_tag || '').trim() || '';
     finalLink = await generateAmazonShortLink(productData, amzTag);
   } else if (isShopee) {
     if (cleanBaseUrl.includes('careers.') || cleanBaseUrl.includes('help.') || cleanBaseUrl.includes('/legal/')) {
@@ -2893,7 +2893,7 @@ async function handleStartMassDispatch(params) {
     id: 'queue_' + Date.now(),
     status: 'running',
     targetGroup: groupName,
-    affiliateTag: affiliateTag || 'jonathansneves',
+    affiliateTag: affiliateTag || '',
     copyStyle: copyStyle || 'vantagens_gatilhos',
     minIntervalMinutes: minMin,
     maxIntervalMinutes: maxMin,

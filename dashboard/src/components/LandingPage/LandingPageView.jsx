@@ -385,10 +385,10 @@ export default function LandingPageView({
                 <TrendingUp className="h-5 w-5" />
               </div>
               <h3 className="text-base font-bold text-stone-900 dark:text-white">
-                Dashboard de Vendas & ROI
+                Dashboard de Ofertas & Vendas
               </h3>
               <p className="text-xs text-stone-600 dark:text-slate-400 leading-relaxed">
-                Tenha clareza absoluta de quais ofertas geraram mais cliques, quais produtos venderam melhor e qual foi o lucro líquido da sua operação em cada dia.
+                Tenha clareza de todas as ofertas disparadas nos seus grupos do WhatsApp, histórico diário de envios e registro de comissões estimadas em tempo real.
               </p>
             </div>
           </div>
