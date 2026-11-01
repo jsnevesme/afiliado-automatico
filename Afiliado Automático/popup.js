@@ -179,6 +179,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const toastIcon = document.getElementById('toastIcon');
   const toastMessage = document.getElementById('toastMessage');
 
+  // Status da Conexão com o WhatsApp Web e Banners de Conectar
+  const waStatusPill = document.getElementById('waStatusPill');
+  const waStatusDot = document.getElementById('waStatusDot');
+  const waStatusText = document.getElementById('waStatusText');
+  const waConnectBanner = document.getElementById('waConnectBanner');
+  const btnConnectWaBanner = document.getElementById('btnConnectWaBanner');
+  const waConnectBannerConfig = document.getElementById('waConnectBannerConfig');
+  const btnConnectWaConfig = document.getElementById('btnConnectWaConfig');
+
   // =========================================================================
   // ESTADO LOCAL
   // =========================================================================
@@ -352,6 +361,13 @@ document.addEventListener('DOMContentLoaded', () => {
       await initQueueMonitoring();
     } catch (e) {
       console.warn('[Afiliado ML] Erro ao iniciar monitoramento da fila:', e);
+    }
+
+    try {
+      await checkWhatsAppConnectionStatus();
+      setInterval(checkWhatsAppConnectionStatus, 4000);
+    } catch (e) {
+      console.warn('[Afiliado ML] Erro ao verificar conexão com WhatsApp:', e);
     }
   }
 
@@ -613,6 +629,17 @@ document.addEventListener('DOMContentLoaded', () => {
           if (appContainer) appContainer.scrollTo({ top: 0, behavior: 'smooth' });
         }
       });
+    }
+
+    // Conexão e Interação com o WhatsApp Web
+    if (waStatusPill) {
+      waStatusPill.addEventListener('click', openOrFocusWhatsAppWeb);
+    }
+    if (btnConnectWaBanner) {
+      btnConnectWaBanner.addEventListener('click', openOrFocusWhatsAppWeb);
+    }
+    if (btnConnectWaConfig) {
+      btnConnectWaConfig.addEventListener('click', openOrFocusWhatsAppWeb);
     }
 
     // Botão de Recarregar Extensão (Manual Hot-Reload)
@@ -1645,11 +1672,85 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // =========================================================================
+  // DETECÇÃO E CONEXÃO COM WHATSAPP WEB
+  // =========================================================================
+
+  async function checkWhatsAppConnectionStatus() {
+    try {
+      const tabs = await chrome.tabs.query({ url: '*://web.whatsapp.com/*' });
+      const isConnected = Array.isArray(tabs) && tabs.length > 0;
+      updateWhatsAppStatusUI(isConnected);
+      return isConnected;
+    } catch (err) {
+      console.warn('[WhatsApp] Erro ao verificar status do WhatsApp Web:', err);
+      updateWhatsAppStatusUI(false);
+      return false;
+    }
+  }
+
+  function updateWhatsAppStatusUI(isConnected) {
+    if (waStatusPill) {
+      if (isConnected) {
+        waStatusPill.classList.remove('disconnected');
+        waStatusPill.classList.add('connected');
+        if (waStatusText) waStatusText.textContent = 'WhatsApp Conectado';
+        waStatusPill.title = 'WhatsApp Web detectado e conectado. Clique para alternar para a aba.';
+      } else {
+        waStatusPill.classList.remove('connected');
+        waStatusPill.classList.add('disconnected');
+        if (waStatusText) waStatusText.textContent = 'Conectar WhatsApp';
+        waStatusPill.title = 'WhatsApp Web não detectado. Clique para abrir ou conectar.';
+      }
+    }
+
+    if (waConnectBanner) {
+      waConnectBanner.style.display = isConnected ? 'none' : 'flex';
+    }
+    if (waConnectBannerConfig) {
+      waConnectBannerConfig.style.display = isConnected ? 'none' : 'flex';
+    }
+  }
+
+  async function openOrFocusWhatsAppWeb() {
+    try {
+      const tabs = await chrome.tabs.query({ url: '*://web.whatsapp.com/*' });
+      if (tabs && tabs.length > 0) {
+        const tab = tabs[0];
+        await chrome.tabs.update(tab.id, { active: true });
+        if (tab.windowId) {
+          try {
+            await chrome.windows.update(tab.windowId, { focused: true });
+          } catch (_) {}
+        }
+        showToast('Alternado para a aba do WhatsApp Web.', '📲');
+        updateWhatsAppStatusUI(true);
+      } else {
+        showToast('Abrindo WhatsApp Web em uma nova aba...', '⏳');
+        await chrome.tabs.create({ url: 'https://web.whatsapp.com', active: true });
+        setTimeout(checkWhatsAppConnectionStatus, 2000);
+        setTimeout(checkWhatsAppConnectionStatus, 5000);
+      }
+    } catch (err) {
+      console.warn('[WhatsApp] Erro ao abrir/focar WhatsApp Web:', err);
+      showToast('Não foi possível abrir o WhatsApp Web.', '❌');
+    }
+  }
+
+  // =========================================================================
   // SINCRONIZAÇÃO AUTOMÁTICA COM O WHATSAPP WEB
   // =========================================================================
 
   async function handleSyncGroups() {
     if (isSyncingGroups) return;
+
+    // Se o WhatsApp Web não estiver aberto, abre para o usuário e orienta
+    const isWaOpen = await checkWhatsAppConnectionStatus();
+    if (!isWaOpen) {
+      showToast('WhatsApp Web não está aberto. Abrindo agora para você...', '📲');
+      await openOrFocusWhatsAppWeb();
+      return;
+    }
+
     isSyncingGroups = true;
 
     if (btnSyncGroups) {
@@ -1664,6 +1765,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const response = await chrome.runtime.sendMessage({ action: 'sync_whatsapp_groups' });
 
       if (response && response.success && Array.isArray(response.groups) && response.groups.length > 0) {
+        updateWhatsAppStatusUI(true);
         allDetectedGroups = response.groups;
         await chrome.storage.local.set({ all_detected_whatsapp_groups: allDetectedGroups });
 
@@ -1686,7 +1788,12 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (err) {
       console.warn('[Afiliado ML] Erro ao sincronizar grupos:', err);
-      showToast(`Falha na sincronização: ${err.message}`, '⚠️');
+      if (err.message && err.message.toLowerCase().includes('whatsapp web')) {
+        updateWhatsAppStatusUI(false);
+        showToast('Abra e conecte o WhatsApp Web primeiro.', '📲');
+      } else {
+        showToast(`Falha na sincronização: ${err.message}`, '⚠️');
+      }
     } finally {
       isSyncingGroups = false;
       if (btnSyncGroups) {
@@ -5101,22 +5208,9 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       await supabase.initSession();
 
-      // Se ainda não houver sessão ativa e o usuário não tiver clicado em "Sair" voluntariamente,
-      // autentica automaticamente a conta Super Admin jsnevesme@gmail.com
-      if (!supabase.session) {
-        const stored = await chrome.storage.local.get(['sb_has_logged_out']);
-        if (!stored.sb_has_logged_out) {
-          try {
-            await supabase.signIn('jsnevesme@gmail.com', 'Admin123456!');
-            console.log('[Supabase] Auto-login Super Admin ativado!');
-          } catch (autoErr) {
-            console.warn('[Supabase] Tentativa de auto-login:', autoErr.message);
-          }
-        }
-      }
-
       if (!supabase.session) {
         showAuthModal(false);
+        renderUserPlanUI();
       } else {
         hideAuthModal();
         renderUserPlanUI();
@@ -5189,7 +5283,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (subbarUserEmail) {
       if (status.isAuthenticated) {
-        subbarUserEmail.textContent = status.email || 'jsnevesme@gmail.com';
+        subbarUserEmail.textContent = status.email || '';
         if (userDot) userDot.className = 'user-active-dot';
         if (subbarAccountPill) subbarAccountPill.title = `Conectado como ${status.email}. Clique para abrir configurações.`;
       } else {
@@ -5376,9 +5470,50 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typeof supabase !== 'undefined') {
           await supabase.signOut();
         }
-        showToast('Você saiu da sua conta.', 'ℹ️');
-        showAuthModal(false);
+
+        // Marca que o usuário fez logout voluntário
+        await chrome.storage.local.set({ sb_has_logged_out: true });
+
+        // Remove do storage local todos os dados privados da conta
+        await chrome.storage.local.remove([
+          'ml_affiliate_tag',
+          'amazon_affiliate_tag',
+          'shopee_affiliate_tag',
+          'groq_api_key',
+          'ml_whatsapp_groups',
+          'all_detected_whatsapp_groups',
+          'ml_selected_dispatch_groups',
+          'ml_pinned_group',
+          'user_favorites'
+        ]);
+
+        // Reseta o estado em memória
+        affiliateTag = '';
+        amazonAffiliateTag = '';
+        shopeeAffiliateTag = '';
+        groqApiKey = '';
+        groups = [];
+        allDetectedGroups = [];
+        selectedDispatchGroups.clear();
+        pinnedGroup = '';
+        favoriteOffers = [];
+
+        // Limpa campos visuais de formulário
+        if (affiliateTagInput) affiliateTagInput.value = '';
+        if (amazonTagInput) amazonTagInput.value = '';
+        if (shopeeTagInput) shopeeTagInput.value = '';
+        if (groqApiKeyInput) groqApiKeyInput.value = '';
+        if (userEmailDisplay) userEmailDisplay.textContent = 'Sem conta';
+
+        renderGroupsUI();
+        renderTargetGroupsSelector();
+        if (activeMainTab === 'favorites') {
+          renderFavoritesUI();
+        }
         renderUserPlanUI();
+
+        showToast('Você saiu da sua conta. Todos os dados foram limpos.', 'ℹ️');
+        showAuthModal(false);
       } catch (e) {
         console.warn('Erro no logout:', e);
       }

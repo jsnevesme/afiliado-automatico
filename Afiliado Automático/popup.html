@@ -40,15 +40,15 @@
     <!-- SUB-BARRA DE STATUS: CONTA LOGADA + CONTADOR + WHATSAPP -->
     <div class="app-subbar">
       <div id="subbarAccountPill" class="subbar-user-pill" title="Clique para gerenciar sua conta">
-        <span class="user-active-dot"></span>
-        <span id="subbarUserEmail" class="subbar-email-text">jsnevesme@gmail.com</span>
+        <span class="user-active-dot inactive"></span>
+        <span id="subbarUserEmail" class="subbar-email-text">Clique para Entrar</span>
       </div>
       <div class="subbar-right-pills">
-        <span id="dailyDispatchCounter" class="daily-dispatch-pill" title="Disparos realizados hoje">🎯 Ilimitado</span>
-        <span class="status-indicator-pill" title="WhatsApp Web Sincronizado">
-          <span class="status-dot-pulse"></span>
-          <span>WhatsApp Ativo</span>
-        </span>
+        <span id="dailyDispatchCounter" class="daily-dispatch-pill" title="Disparos realizados hoje">🎯 0/20</span>
+        <button id="waStatusPill" type="button" class="status-indicator-pill" title="Status da Conexão com o WhatsApp Web">
+          <span id="waStatusDot" class="status-dot-pulse"></span>
+          <span id="waStatusText">WhatsApp</span>
+        </button>
       </div>
     </div>
 
@@ -208,6 +208,20 @@
             <span id="planGroupsLimitBadge" class="plan-limit-badge">0 / 1 cadastrado(s)</span>
           </div>
 
+          <!-- BANNER DE CONEXÃO DO WHATSAPP (Visível quando WhatsApp não está aberto) -->
+          <div id="waConnectBannerConfig" class="wa-connect-banner" style="display: none;">
+            <div class="wa-connect-banner-left">
+              <span class="wa-connect-icon">📲</span>
+              <div class="wa-connect-texts">
+                <span class="wa-connect-title">WhatsApp Web não detectado</span>
+                <span class="wa-connect-desc">Abra o WhatsApp Web para puxar seus grupos e disparar ofertas.</span>
+              </div>
+            </div>
+            <button id="btnConnectWaConfig" type="button" class="btn-connect-wa-action" title="Conectar ao WhatsApp Web">
+              Conectar WhatsApp
+            </button>
+          </div>
+
           <div class="sync-actions-row">
             <button id="btnSyncGroups" class="btn-sync-action" type="button">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon">
@@ -236,6 +250,20 @@
 
     <!-- SEÇÃO 2: BUSCA, SELEÇÃO E IA -->
     <section class="search-section">
+      <!-- BANNER DE CONEXÃO DO WHATSAPP (Visível quando WhatsApp Web não está conectado) -->
+      <div id="waConnectBanner" class="wa-connect-banner" style="display: none;">
+        <div class="wa-connect-banner-left">
+          <span class="wa-connect-icon">📲</span>
+          <div class="wa-connect-texts">
+            <span class="wa-connect-title">WhatsApp Web não conectado</span>
+            <span class="wa-connect-desc">Abra o WhatsApp Web para puxar grupos e disparar suas ofertas.</span>
+          </div>
+        </div>
+        <button id="btnConnectWaBanner" type="button" class="btn-connect-wa-action" title="Conectar ao WhatsApp Web">
+          Conectar WhatsApp
+        </button>
+      </div>
+
       <!-- Seletor de Destino Multi-Grupos Cadastrados -->
       <div class="target-group-wrapper">
         <div class="target-header-row">

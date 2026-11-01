@@ -1,11 +1,11 @@
 {
-  "version": "2.3.4",
-  "buildTimestamp": 1730432400000,
-  "updatedAt": "2026-10-31T23:35:00.000Z",
+  "version": "2.3.5",
+  "buildTimestamp": 1730478000000,
+  "updatedAt": "2026-11-01T16:35:00.000Z",
   "features": [
-    "Fix permanente e persistência multi-camadas no bloqueio de 30 dias de plataforma do plano Starter",
-    "Bloqueio estrito de busca e disparo na extensão e in-page para usuários Starter sem travamento prévio de plataforma",
-    "Remoção completa e definitiva do Radar de Ofertas da plataforma",
-    "Eliminação definitiva do erro 'Histórico de conversas' na extração de títulos de produtos na Amazon"
+    "Instalação 100% limpa para novos usuários sem credenciais residuais",
+    "Botão interativo e detecção em tempo real de conexão com o WhatsApp Web",
+    "Logout completo limpando tags, grupos e chaves locais",
+    "Fix permanente e persistência no bloqueio de plataforma do plano Starter"
   ]
 }

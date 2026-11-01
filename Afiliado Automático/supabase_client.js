@@ -593,27 +593,6 @@ class SupabaseClient {
    * Calcula o status do plano e dias restantes de teste
    */
   getPlanStatus() {
-    const userEmail = (this.profile?.email || this.session?.user?.email || '').toLowerCase();
-    const isSuperAdmin = (this.profile?.role === 'superadmin') || userEmail === 'jsnevesme@gmail.com';
-
-    if (isSuperAdmin) {
-      return {
-        isAuthenticated: true,
-        isSuperAdmin: true,
-        email: userEmail || 'jsnevesme@gmail.com',
-        plan: 'ultra',
-        planName: 'Super Admin',
-        planBadge: '👑 Super Admin',
-        badgeClass: 'badge-superadmin',
-        isLocked: false,
-        daysRemaining: 9999,
-        allowedPlatform: 'all',
-        dispatchesToday: this.profile?.daily_dispatches_count || 0,
-        dispatchLimit: 999999,
-        maxAllowedGroups: 9999
-      };
-    }
-
     if (!this.session || !this.session.user) {
       return {
         isAuthenticated: false,
@@ -630,6 +609,27 @@ class SupabaseClient {
         dispatchesToday: 0,
         dispatchLimit: 0,
         maxAllowedGroups: 0
+      };
+    }
+
+    const userEmail = (this.profile?.email || this.session?.user?.email || '').toLowerCase();
+    const isSuperAdmin = (this.profile?.role === 'superadmin') || (userEmail && userEmail === 'jsnevesme@gmail.com');
+
+    if (isSuperAdmin) {
+      return {
+        isAuthenticated: true,
+        isSuperAdmin: true,
+        email: userEmail,
+        plan: 'ultra',
+        planName: 'Super Admin',
+        planBadge: '👑 Super Admin',
+        badgeClass: 'badge-superadmin',
+        isLocked: false,
+        daysRemaining: 9999,
+        allowedPlatform: 'all',
+        dispatchesToday: this.profile?.daily_dispatches_count || 0,
+        dispatchLimit: 999999,
+        maxAllowedGroups: 9999
       };
     }
 
