@@ -64,26 +64,99 @@
   // EXTRAÇÃO DE PRODUTO DA PÁGINA ATUAL (PDP AMAZON)
   // =========================================================================
 
+  function isGarbageAmazonTitle(str) {
+    if (!str || typeof str !== 'string') return true;
+    const s = str.trim().toLowerCase();
+    if (s.length < 3) return true;
+    const junkPatterns = [
+      'histórico de conversas',
+      'historico de conversas',
+      'histórico de navegação',
+      'historico de navegacao',
+      'carrinho de compras',
+      'carrinho',
+      'sua conta',
+      'compre novamente',
+      'fale conosco',
+      'atendimento ao cliente',
+      'resultados de busca',
+      'resultados para',
+      'mais vendidos',
+      'ofertas do dia',
+      'amazon.com.br',
+      'selecione o endereço',
+      'enviar para',
+      'olá, faça seu login',
+      'devoluções e pedidos'
+    ];
+    return junkPatterns.some(p => s.includes(p));
+  }
+
   function extractCurrentPageProduct() {
     const asin = getAsinFromUrl(window.location.href) || getAsinFromDom();
-    if (!asin && !document.querySelector('#productTitle, #title, h1')) {
+    if (!asin && !document.querySelector('#productTitle, #titleSection, #centerCol, #dp-container')) {
       return null;
     }
 
-    // 1. Título
+    // 1. Título (Prioridade absoluta para seletores oficiais de PDP da Amazon e eliminação de histórico de conversas/gavetas)
     let title = '';
-    const titleEl = document.querySelector('#productTitle, #title, h1#title, h1[class*="title"], h1');
-    if (titleEl) {
-      title = titleEl.textContent.trim();
+    const titleCandidates = [
+      '#productTitle',
+      '#title #productTitle',
+      '#centerCol #productTitle',
+      '#ppd #productTitle',
+      '#titleSection h1',
+      '#title_feature_div #productTitle',
+      '#title_feature_div h1',
+      '#centerCol h1#title',
+      '#centerCol h1',
+      'h1#title'
+    ];
+
+    for (const sel of titleCandidates) {
+      const el = document.querySelector(sel);
+      if (el) {
+        const text = el.textContent.trim().replace(/\s+/g, ' ');
+        if (text && !isGarbageAmazonTitle(text)) {
+          title = text;
+          break;
+        }
+      }
     }
-    if (!title) {
-      const ogTitle = document.querySelector('meta[property="og:title"]');
-      if (ogTitle && ogTitle.content) title = ogTitle.content.split(':')[0].trim();
+
+    // Fallback 1: meta og:title (sempre limpo na Amazon)
+    if (!title || isGarbageAmazonTitle(title)) {
+      const ogTitle = document.querySelector('meta[property="og:title"], meta[name="title"]');
+      if (ogTitle && ogTitle.content) {
+        let clean = ogTitle.content.split(/:\s*Amazon/i)[0].trim();
+        clean = clean.split(' | ')[0].trim();
+        if (clean && !isGarbageAmazonTitle(clean)) {
+          title = clean;
+        }
+      }
     }
-    if (!title) {
-      title = document.title.replace(/:\s*Amazon\.com\.br.*/i, '').trim();
+
+    // Fallback 2: document.title
+    if (!title || isGarbageAmazonTitle(title)) {
+      let docTitle = document.title || '';
+      docTitle = docTitle.replace(/:\s*Amazon\.com\.br.*/i, '')
+                         .replace(/:\s*Amazon\.com.*/i, '')
+                         .replace(/\|\s*Amazon.*/i, '')
+                         .trim();
+      if (docTitle && !isGarbageAmazonTitle(docTitle)) {
+        title = docTitle;
+      }
     }
-    if (!title || title.length < 3) return null;
+
+    // Fallback 3: alt da imagem principal
+    if (!title || isGarbageAmazonTitle(title)) {
+      const mainImg = document.querySelector('#landingImage, #imgBlkFront, #main-image');
+      if (mainImg && mainImg.alt && !isGarbageAmazonTitle(mainImg.alt)) {
+        title = mainImg.alt.trim();
+      }
+    }
+
+    if (!title || isGarbageAmazonTitle(title) || title.length < 3) return null;
 
     // 2. Preços (Promocional e Riscado)
     let price = 'Consulte';
@@ -310,6 +383,13 @@
   // =========================================================================
 
   function extractSearchPageProducts() {
+    // Se a aba for uma PDP (página de produto individual), jamais extrai carrossel ou recomendações como busca
+    if (document.querySelector('#productTitle, #centerCol #productTitle, #ppd #productTitle, #dp-container') ||
+        window.location.href.includes('/dp/') ||
+        window.location.href.includes('/gp/product/')) {
+      return [];
+    }
+
     const list = [];
     const seen = new Set();
 

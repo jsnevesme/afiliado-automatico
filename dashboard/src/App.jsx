@@ -28,6 +28,13 @@ export default function App() {
   const [folders, setFolders] = useState([])
   const [prefilledProduct, setPrefilledProduct] = useState(null)
   const [currentTab, setTab] = useState('analytics')
+  const [showRadar, setShowRadar] = useState(() => {
+    try {
+      return localStorage.getItem('hide_radar_tab') !== 'true'
+    } catch (e) {
+      return true
+    }
+  })
   const [loading, setLoading] = useState(true)
   const [profileModalOpen, setProfileModalOpen] = useState(false)
   const [authModalOpen, setAuthModalOpen] = useState(false)
@@ -566,6 +573,7 @@ export default function App() {
           favoritesCount={favorites.length}
           mobileMenuOpen={mobileMenuOpen}
           onCloseMobileMenu={() => setMobileMenuOpen(false)}
+          showRadar={showRadar}
         />
 
         <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
@@ -609,6 +617,11 @@ export default function App() {
                 favorites={favorites}
                 onSaveFavorite={handleSaveFavoriteFromRadar}
                 onLaunchSale={handleLaunchSaleWithProduct}
+                onHideRadar={() => {
+                  setShowRadar(false)
+                  try { localStorage.setItem('hide_radar_tab', 'true') } catch (e) {}
+                  setTab('analytics')
+                }}
               />
             )}
 
@@ -709,6 +722,8 @@ export default function App() {
                 user={user}
                 darkMode={darkMode}
                 setDarkMode={setDarkMode}
+                showRadar={showRadar}
+                setShowRadar={setShowRadar}
               />
             )}
 

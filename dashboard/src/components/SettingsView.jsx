@@ -18,7 +18,8 @@ import {
   Lock,
   Plus,
   Trash2,
-  ArrowRight
+  ArrowRight,
+  Flame
 } from 'lucide-react'
 import { supabase } from '../supabase'
 
@@ -79,7 +80,7 @@ const AVATAR_CATEGORIES = [
   }
 ]
 
-export default function SettingsView({ profile, onProfileUpdate, isSuperAdmin, user, darkMode, setDarkMode }) {
+export default function SettingsView({ profile, onProfileUpdate, isSuperAdmin, user, darkMode, setDarkMode, showRadar = true, setShowRadar }) {
   // Dados de Perfil
   const [fullName, setFullName] = useState(
     profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || ''
@@ -558,6 +559,49 @@ export default function SettingsView({ profile, onProfileUpdate, isSuperAdmin, u
                   Preto suave (#06090E), foco prolongado e economia de bateria
                 </p>
               </div>
+            </button>
+          </div>
+        </div>
+
+        {/* SEÇÃO: MÓDULOS & RADAR DE OFERTAS */}
+        <div className="rounded-[28px] border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-[#121724] p-6 shadow-xs space-y-4 transition-colors">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div className="flex items-center gap-2">
+              <Flame className="h-4 w-4 text-orange-500" />
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white">Módulos da Plataforma</h2>
+            </div>
+            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${showRadar ? 'bg-orange-100 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              {showRadar ? 'Radar Ativo' : 'Radar Oculto'}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 font-bold text-xs text-slate-800 dark:text-slate-200">
+                <span>Exibir Radar de Ofertas no Menu Lateral</span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Exibe a aba do Radar de Ofertas no menu lateral da plataforma. Você pode desativar para trabalhar exclusivamente com ofertas capturadas pela extensão nos sites oficiais.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const next = !showRadar
+                if (setShowRadar) setShowRadar(next)
+                try {
+                  localStorage.setItem('hide_radar_tab', next ? 'false' : 'true')
+                } catch (e) {}
+              }}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                showRadar ? 'bg-orange-500' : 'bg-slate-300 dark:bg-slate-700'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                  showRadar ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
             </button>
           </div>
         </div>

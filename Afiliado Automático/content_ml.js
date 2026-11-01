@@ -670,6 +670,16 @@
   }
 
   function extractSearchPageProducts() {
+    // Se a aba for uma PDP (página de produto individual / anúncio), jamais extrai carrossel ou variações como busca
+    if (document.querySelector('.ui-pdp-title, #ui-pdp-main-container, .ui-pdp-container, .ui-pdp-price') ||
+        window.location.href.includes('/p/MLB') ||
+        window.location.href.includes('/up/') ||
+        window.location.href.includes('/item/') ||
+        window.location.href.includes('MLB-') ||
+        /\/MLB\d+/i.test(window.location.href)) {
+      return [];
+    }
+
     const list = [];
     const seen = new Set();
     const pageContext = extractPageCategoryContext();

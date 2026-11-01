@@ -1,13 +1,12 @@
 {
-  "version": "2.3.2",
-  "buildTimestamp": 1730428500000,
-  "updatedAt": "2026-10-31T22:25:00.000Z",
+  "version": "2.3.3",
+  "buildTimestamp": 1730431200000,
+  "updatedAt": "2026-10-31T23:15:00.000Z",
   "features": [
-    "Radar com Feed Infinito e 36+ Super Ofertas de 50% a 78% OFF reais",
-    "Robô Scraper monitorando /ofertas (ML), /flash_sale (Shopee) e /deals (Amazon)",
-    "Botão de Atualizar Radar funcional com injeção de novos bugs e queimas de estoque",
-    "Imagens corrigidas com política no-referrer contra bloqueios CDN de hotlink",
-    "Unificação dos modais in-page e botões flutuantes da Amazon e Shopee no padrão exato do Mercado Livre",
-    "Detecção contínua de rotas SPA na Shopee garantindo exibição do botão flutuante"
+    "Correção definitiva na extração do título de produtos na Amazon (eliminação de Histórico de conversas)",
+    "Detecção infalível de páginas de produto individual (PDP) no Mercado Livre com suporte a URLs /up/ e /item/",
+    "Eliminação completa de cards de variação (cor, tamanho, perguntas) ao abrir a extensão em páginas de produto",
+    "Radar com produtos 100% reais, imagens oficiais em CDNs de e-commerce e links válidos",
+    "Opção de ocultar ou desativar o Radar de Ofertas no menu lateral da plataforma a qualquer momento"
   ]
 }

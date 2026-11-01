@@ -355,6 +355,13 @@
   // =========================================================================
 
   function extractSearchPageProducts() {
+    // Se a aba for uma PDP (página de produto individual da Shopee), jamais extrai carrossel ou recomendações como busca
+    if (document.querySelector('div[class*="page-product"], div[class*="product-briefing"], .WBVL_7, .attM6q') ||
+        window.location.href.includes('-i.') ||
+        window.location.href.includes('/product/')) {
+      return [];
+    }
+
     const list = [];
     const seen = new Set();
 

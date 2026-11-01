@@ -1922,25 +1922,48 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       } catch (e) {}
 
-      // 1. Se for página de busca, catálogo de ofertas ou Portal de Afiliados
-      const isMLCatalog = isML && (
+      // 1. Detecção rigorosa de PDP (Página de Detalhes de Produto Individual)
+      const isMLPDP = isML && (
+        url.includes('/p/MLB') ||
+        url.includes('MLB-') ||
+        url.includes('MLB_') ||
+        url.includes('/up/') ||
+        url.includes('/item/') ||
+        url.includes('produto.mercadolivre.com.br') ||
+        /\/MLB\d+/i.test(url)
+      );
+
+      const isAmzPDP = isAmz && (
+        url.includes('/dp/') ||
+        url.includes('/gp/product/') ||
+        url.includes('/ASIN/') ||
+        /\/d\/[A-Z0-9]{10}/i.test(url)
+      );
+
+      const isShpPDP = isShp && (
+        url.includes('-i.') ||
+        url.includes('/product/')
+      );
+
+      const isPDP = isMLPDP || isAmzPDP || isShpPDP;
+
+      // 2. Se for página de busca, catálogo de ofertas ou Portal de Afiliados (somente quando NÃO for PDP)
+      const isMLCatalog = !isPDP && isML && (
         url.includes('lista.mercadolivre.com.br') ||
         url.includes('/jm/search') ||
         url.includes('/ofertas') ||
+        url.includes('/descontos') ||
         url.includes('/c/') ||
-        url.includes('/afiliados') ||
-        (!url.includes('/p/MLB') && !url.includes('MLB-') && !url.includes('produto.mercadolivre'))
+        url.includes('/afiliados')
       );
-      const isAmzCatalog = isAmz && (
-        url.includes('/s?') || url.includes('/s/') || url.includes('/b?') || url.includes('/b/') || url.includes('/deals') || url.includes('node=') ||
-        (!url.includes('/dp/') && !url.includes('/gp/product/'))
+      const isAmzCatalog = !isPDP && isAmz && (
+        url.includes('/s?') || url.includes('/s/') || url.includes('/b?') || url.includes('/b/') || url.includes('/deals') || url.includes('node=')
       );
-      const isShpCatalog = isShp && (
-        url.includes('/search') || url.includes('/shop/') ||
-        (!url.includes('-i.') && !url.includes('/product/'))
+      const isShpCatalog = !isPDP && isShp && (
+        url.includes('/search') || url.includes('/shop/') || url.includes('/daily_discover') || url.includes('/flash_sale')
       );
 
-      const isCatalogOrSearch = isMLCatalog || isAmzCatalog || isShpCatalog;
+      const isCatalogOrSearch = !isPDP && (isMLCatalog || isAmzCatalog || isShpCatalog);
 
       if (isCatalogOrSearch) {
         let products = [];
@@ -2044,6 +2067,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const isML = url.includes('mercadolivre.com.br') || url.includes('meli.la');
     const isAmz = url.includes('amazon.') || url.includes('amzn.to') || url.includes('link.amazon');
     const isShp = (url.includes('shopee.com.br') || url.includes('s.shopee.com.br')) && !url.includes('careers.') && !url.includes('help.');
+
+    // Se a aba for uma PDP (página de produto individual), jamais extrai variações ou recomendações internas como busca
+    if (document.querySelector('.ui-pdp-title, #ui-pdp-main-container, .ui-pdp-container, #productTitle, #centerCol, div[class*="page-product"]') ||
+        url.includes('/p/MLB') || url.includes('/up/') || url.includes('/item/') || url.includes('MLB-') ||
+        url.includes('/dp/') || url.includes('/gp/product/') || url.includes('-i.')) {
+      return [];
+    }
 
     function parsePrice(str) {
       if (!str) return { raw: 0, formatted: 'Consulte' };
@@ -2611,18 +2641,52 @@ document.addEventListener('DOMContentLoaded', () => {
           if (val && val.length === 10) asin = val.toUpperCase();
         }
       }
-      if (!asin) return null;
-      if (!document.querySelector('#productTitle, #title, h1#title')) return null;
-
-      // 2. Título
-      let title = '';
-      const titleEl = document.querySelector('#productTitle, #title, h1#title');
-      if (titleEl) title = titleEl.textContent.trim();
-      if (!title) {
-        const ogTitle = document.querySelector('meta[property="og:title"]');
-        if (ogTitle && ogTitle.content) title = ogTitle.content.split(':')[0].trim();
+      function isGarbageTitle(str) {
+        if (!str || typeof str !== 'string') return true;
+        const s = str.trim().toLowerCase();
+        if (s.length < 3) return true;
+        const junk = ['histórico de conversas', 'historico de conversas', 'histórico de navegação', 'historico de navegacao', 'carrinho', 'sua conta', 'compre novamente', 'resultados para', 'mais vendidos'];
+        return junk.some(j => s.includes(j));
       }
-      if (!title || title.length < 3) return null;
+
+      // 2. Título (Prioridade para os IDs canônicos da Amazon e eliminação de histórico de conversas)
+      let title = '';
+      const titleCandidates = [
+        '#productTitle',
+        '#title #productTitle',
+        '#centerCol #productTitle',
+        '#ppd #productTitle',
+        '#titleSection h1',
+        '#title_feature_div #productTitle',
+        '#title_feature_div h1',
+        '#centerCol h1#title',
+        '#centerCol h1',
+        'h1#title'
+      ];
+      for (const sel of titleCandidates) {
+        const el = document.querySelector(sel);
+        if (el) {
+          const t = el.textContent.trim().replace(/\s+/g, ' ');
+          if (t && !isGarbageTitle(t)) {
+            title = t;
+            break;
+          }
+        }
+      }
+      if (!title || isGarbageTitle(title)) {
+        const ogTitle = document.querySelector('meta[property="og:title"], meta[name="title"]');
+        if (ogTitle && ogTitle.content) {
+          let clean = ogTitle.content.split(/:\s*Amazon/i)[0].trim();
+          clean = clean.split(' | ')[0].trim();
+          if (clean && !isGarbageTitle(clean)) title = clean;
+        }
+      }
+      if (!title || isGarbageTitle(title)) {
+        let docTitle = document.title || '';
+        docTitle = docTitle.replace(/:\s*Amazon\.com\.br.*/i, '').replace(/:\s*Amazon\.com.*/i, '').replace(/\|\s*Amazon.*/i, '').trim();
+        if (docTitle && !isGarbageTitle(docTitle)) title = docTitle;
+      }
+      if (!title || isGarbageTitle(title) || title.length < 3) return null;
 
       // 3. Preço Atual
       let price = 'Consulte';
@@ -2887,11 +2951,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (isML) {
-      if (!url.includes('/p/MLB') && !url.includes('MLB-') && !url.includes('produto.mercadolivre.com.br')) return null;
+      const isMLPDP = url.includes('/p/MLB') || url.includes('MLB-') || url.includes('MLB_') ||
+                      url.includes('/up/') || url.includes('/item/') || url.includes('produto.mercadolivre.com.br') ||
+                      /\/MLB\d+/i.test(url) || !!document.querySelector('.ui-pdp-title, #ui-pdp-main-container, .ui-pdp-container, .ui-pdp-price');
+      if (!isMLPDP) return null;
 
       let title = '';
-      const titleEl = document.querySelector('h1.ui-pdp-title, h1');
+      const titleEl = document.querySelector('h1.ui-pdp-title, .ui-pdp-header__title-container h1, h1[class*="title"]');
       if (titleEl) title = titleEl.textContent.trim();
+      if (!title) {
+        const ogTitle = document.querySelector('meta[property="og:title"]');
+        if (ogTitle && ogTitle.content) title = ogTitle.content.split('|')[0].trim();
+      }
+      if (!title) {
+        title = document.title.split('|')[0].replace(/no Mercado Livre.*/i, '').trim();
+      }
       if (!title || title.length < 3) return null;
 
       let price = 'Consulte';

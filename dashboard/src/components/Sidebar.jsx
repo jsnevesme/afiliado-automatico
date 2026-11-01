@@ -34,7 +34,8 @@ export default function Sidebar({
   onOpenProfile,
   favoritesCount = 0,
   mobileMenuOpen = false,
-  onCloseMobileMenu
+  onCloseMobileMenu,
+  showRadar = true
 }) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef(null)
@@ -56,7 +57,7 @@ export default function Sidebar({
 
   const navItems = [
     { id: 'analytics', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'radar', label: 'Radar de Ofertas', icon: Flame, badge: 'HOT' },
+    ...(showRadar ? [{ id: 'radar', label: 'Radar de Ofertas', icon: Flame, badge: 'HOT' }] : []),
     { id: 'favorites', label: 'Favoritos', icon: BookmarkCheck, badge: favoritesCount > 0 ? String(favoritesCount) : null },
     { id: 'dailysales', label: 'Vendas & Comissões', icon: DollarSign },
     { id: 'history', label: 'Histórico de Envios', icon: History },
