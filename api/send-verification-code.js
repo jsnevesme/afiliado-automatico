@@ -217,19 +217,16 @@ export default async function handler(req, res) {
       }
     }
 
-    console.log(`[Email Verification] Código para ${cleanEmail}: [${cleanCode}] (Provedor: ${providerUsed}, Entregue: ${delivered})`);
+    console.log(`[Email Verification] Envio para ${cleanEmail}: (Provedor: ${providerUsed}, Entregue: ${delivered})`);
 
-    return res.status(200).json({
-      success: true,
+    return res.status(delivered ? 200 : 503).json({
+      success: delivered,
       delivered,
       provider: providerUsed,
       message: delivered
-        ? 'E-mail de confirmação enviado com sucesso!'
-        : 'Código de confirmação gerado com sucesso.',
-      email: cleanEmail,
-      // Retorna o código no payload caso nenhum provedor externo SMTP/API esteja configurado ainda,
-      // permitindo que o usuário ou ambiente de testes conclua a verificação normalmente
-      code: !delivered ? cleanCode : undefined
+        ? 'E-mail enviado com sucesso!'
+        : 'Nenhum provedor de e-mail (Resend, Brevo ou SendGrid) configurado no servidor.',
+      email: cleanEmail
     });
   } catch (error) {
     console.error('[Email Verification] Erro no processador:', error);
