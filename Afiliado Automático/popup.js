@@ -86,6 +86,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const manualGroupNameInput = document.getElementById('manualGroupNameInput');
   const btnAddManualGroupBtn = document.getElementById('btnAddManualGroupBtn');
   const allDetectedGroupsList = document.getElementById('allDetectedGroupsList');
+  const btnSelectAllModalGroups = document.getElementById('btnSelectAllModalGroups');
+  const btnUnselectAllModalGroups = document.getElementById('btnUnselectAllModalGroups');
 
   // Fallbacks legados
   const targetGroupSelect = document.getElementById('targetGroup');
@@ -721,6 +723,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (groupSearchInput) {
       groupSearchInput.addEventListener('input', renderAllDetectedGroupsList);
+    }
+    if (btnSelectAllModalGroups) {
+      btnSelectAllModalGroups.addEventListener('click', handleModalSelectAllGroups);
+    }
+    if (btnUnselectAllModalGroups) {
+      btnUnselectAllModalGroups.addEventListener('click', handleModalUnselectAllGroups);
     }
     if (btnAddManualGroupBtn) {
       btnAddManualGroupBtn.addEventListener('click', handleAddManualGroup);
@@ -1598,17 +1606,6 @@ document.addEventListener('DOMContentLoaded', () => {
           : { isSuperAdmin: false, maxAllowedGroups: 1, planName: 'STARTER' };
         const maxAllowed = status.isSuperAdmin ? 9999 : (status.maxAllowedGroups || 1);
 
-        // Se ainda não tiver grupos cadastrados, auto-registra os primeiros até o limite
-        if (groups.length === 0) {
-          groups = allDetectedGroups.slice(0, maxAllowed);
-          await chrome.storage.local.set({ ml_whatsapp_groups: groups });
-          if (typeof supabase !== 'undefined' && supabase.session) {
-            try {
-              await supabase.updateProfile({ ml_whatsapp_groups: groups });
-            } catch (_) {}
-          }
-        }
-
         renderGroupsUI();
         renderTargetGroupsSelector();
 
@@ -2288,29 +2285,73 @@ document.addEventListener('DOMContentLoaded', () => {
         let originalPrice = '';
         let rawOriginalPrice = 0;
 
-        const priceTexts = [];
-        const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
-        let node;
-        while (node = walker.nextNode()) {
-          const t = node.nodeValue?.trim();
-          if (t && /R\$\s*[\d\.]+/i.test(t)) priceTexts.push(t);
-        }
-        if (priceTexts.length === 0) {
-          const pEls = Array.from(card.querySelectorAll('span, div')).filter(el => /R\$\s*[\d\.]+/i.test(el.textContent));
-          for (const el of pEls) {
-            if (el.children.length === 0 || !el.querySelector('span, div')) priceTexts.push(el.textContent.trim());
+        // 1. Procura em elementos específicos de preço da Shopee ou que contenham R$
+        const priceEls = Array.from(card.querySelectorAll('[class*="price" i], [data-sqe="price"], [aria-label*="R$"], .truncate, span, div'));
+        for (const el of priceEls) {
+          const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+          const m = t.match(/R\$\s*([\d\.]+)(?:,(\d{2}))?/i);
+          if (m) {
+            const intPart = m[1].replace(/\./g, '');
+            const decPart = m[2] || '00';
+            const val = parseFloat(`${intPart}.${decPart}`) || 0;
+            if (val > 0) {
+              rawPrice = val;
+              price = `R$ ${m[1]}${m[2] ? ',' + m[2] : ',00'}`;
+              break;
+            }
           }
         }
 
-        const parsedPrices = priceTexts.map(t => parsePrice(t)).filter(p => p.raw > 0);
-        if (parsedPrices.length > 0) {
-          const minPrice = parsedPrices.reduce((prev, curr) => curr.raw < prev.raw ? curr : prev, parsedPrices[0]);
-          const maxPrice = parsedPrices.reduce((prev, curr) => curr.raw > prev.raw ? curr : prev, parsedPrices[0]);
-          price = minPrice.formatted;
-          rawPrice = minPrice.raw;
-          if (maxPrice.raw > minPrice.raw) {
-            originalPrice = maxPrice.formatted;
-            rawOriginalPrice = maxPrice.raw;
+        // Fallback 1: se ainda for 0, procura nó que contém 'R$' e pega o texto do container pai
+        if (rawPrice === 0) {
+          const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+          let node;
+          while (node = walker.nextNode()) {
+            if (node.nodeValue && node.nodeValue.includes('R$')) {
+              const p = node.parentElement;
+              const parentText = (p?.closest('div, p, [class*="price" i]')?.innerText || p?.innerText || p?.textContent || '').replace(/\s+/g, ' ').trim();
+              const m = parentText.match(/R\$\s*([\d\.]+)(?:,(\d{2}))?/i);
+              if (m) {
+                const intPart = m[1].replace(/\./g, '');
+                const decPart = m[2] || '00';
+                const val = parseFloat(`${intPart}.${decPart}`) || 0;
+                if (val > 0) {
+                  rawPrice = val;
+                  price = `R$ ${m[1]}${m[2] ? ',' + m[2] : ',00'}`;
+                  break;
+                }
+              }
+            }
+          }
+        }
+
+        // Fallback 2: busca qualquer R$ seguido de número em card.innerText
+        if (rawPrice === 0 && card.innerText) {
+          const m = card.innerText.match(/R\$\s*([\d\.]+)(?:,(\d{2}))?/i);
+          if (m) {
+            const intPart = m[1].replace(/\./g, '');
+            const decPart = m[2] || '00';
+            const val = parseFloat(`${intPart}.${decPart}`) || 0;
+            if (val > 0) {
+              rawPrice = val;
+              price = `R$ ${m[1]}${m[2] ? ',' + m[2] : ',00'}`;
+            }
+          }
+        }
+
+        // Preço Original com Tachado
+        const origEl = card.querySelector('[class*="strike" i], [class*="original" i], [class*="line-through" i], [style*="line-through"], del, s');
+        if (origEl) {
+          const ot = (origEl.innerText || origEl.textContent || '').trim();
+          const om = ot.match(/R\$\s*([\d\.]+)(?:,(\d{2}))?/i) || ot.match(/([\d\.]+),(\d{2})/);
+          if (om) {
+            const intPart = om[1].replace(/\./g, '');
+            const decPart = om[2] || '00';
+            const val = parseFloat(`${intPart}.${decPart}`) || 0;
+            if (val > rawPrice && val > 0) {
+              rawOriginalPrice = val;
+              originalPrice = `R$ ${om[1]}${om[2] ? ',' + om[2] : ',00'}`;
+            }
           }
         }
 
@@ -2318,7 +2359,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let discountPercent = 0;
         const discEl = card.querySelector('[class*="percent"], [class*="discount"], [class*="badge"]');
         if (discEl) {
-          const dm = discEl.textContent.match(/(\d+)\s*%/);
+          const dm = (discEl.innerText || discEl.textContent || '').match(/(\d+)\s*%/);
           if (dm) {
             discountPercent = parseInt(dm[1], 10);
             discount = `${discountPercent}% OFF`;
@@ -2338,30 +2379,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let rating = 0;
         let reviewsCount = '';
-        const rEl = card.querySelector('[class*="rating"], [class*="stars"]');
+        const rEl = card.querySelector('[class*="rating" i], [class*="stars" i], [aria-label*="avaliação" i], [aria-label*="estrela" i]');
         if (rEl) {
-          const rm = rEl.textContent.replace(',', '.').match(/([345](?:\.\d+)?)/);
+          const rm = (rEl.innerText || rEl.textContent || '').replace(',', '.').match(/([345](?:\.\d+)?)/);
           if (rm) rating = parseFloat(rm[1]) || 0;
         }
-        if (!rating) {
-          const cardText = card.textContent.replace(',', '.');
-          const rm = cardText.match(/\b([345]\.[0-9])\b/);
+        if (!rating && card.innerText) {
+          const rm = card.innerText.replace(',', '.').match(/\b([345]\.[0-9])\b/);
           if (rm) rating = parseFloat(rm[1]) || 0;
         }
 
         let sales = '';
         let salesCount = 0;
-        const soldEl = card.querySelector('[class*="sold"], [class*="rN6eW"]');
+        const soldEl = card.querySelector('[class*="sold" i], [class*="rN6eW"], [class*="sales" i], [aria-label*="vendido" i]');
         if (soldEl) {
-          sales = soldEl.textContent.trim();
-        } else {
-          const sm = card.textContent.match(/(\+?\s*\d+(?:[.,]\d+)?\s*(?:mil)?\s*vendido[s]?)/i);
-          if (sm) sales = sm[0].trim();
+          sales = (soldEl.innerText || soldEl.textContent || '').trim();
+        } else if (card.innerText) {
+          const sm = card.innerText.match(/\b(\d+(?:[.,]\d+)?\s*(?:mil|k)?)\s*vendido[s]?/i);
+          if (sm) sales = `${sm[1]} vendidos`;
         }
         if (sales) {
-          const numM = sales.match(/(\+?\s*\d+(?:[.,]\d+)?\s*(?:mil)?)/i);
-          if (numM) {
-            salesCount = /mil/i.test(numM[0]) ? parseFloat(numM[1].replace(',', '.')) * 1000 : parseInt(numM[1].replace(/\D/g, ''), 10);
+          // Corrige caso raro onde preço ficou colado com vendas: ex: "79,9042 vendidos" -> 42 vendidos
+          const weirdGluedMatch = sales.match(/\d+[,.]\d{2}(\d+)\s*vendido/i);
+          if (weirdGluedMatch) {
+            salesCount = parseInt(weirdGluedMatch[1], 10);
+            sales = `${salesCount} vendidos`;
+          } else {
+            const numM = sales.match(/(\d+(?:[.,]\d+)?\s*(?:mil|k)?)/i);
+            if (numM) {
+              if (/mil|k/i.test(numM[0])) {
+                salesCount = Math.round(parseFloat(numM[1].replace(',', '.')) * 1000);
+              } else {
+                salesCount = parseInt(numM[1].replace(/\D/g, ''), 10) || 0;
+              }
+            }
           }
         }
 
@@ -3430,14 +3481,46 @@ document.addEventListener('DOMContentLoaded', () => {
         : `Limite: até ${maxAllowed} grupo(s) cadastrado(s)`;
     }
 
-    // Inicializa seleção temporária com os grupos já cadastrados
-    modalTempSelectedGroups = new Set(groups.slice(0, maxAllowed));
+    // Inicializa seleção temporária como vazio (Padrão: tudo desmarcado!)
+    modalTempSelectedGroups = new Set();
 
     if (groupSearchInput) groupSearchInput.value = '';
     renderAllDetectedGroupsList();
     updateModalQuotaBadge();
 
     groupRegisterModal.classList.remove('hidden');
+  }
+
+  function handleModalSelectAllGroups() {
+    const status = (typeof supabase !== 'undefined' && supabase.getPlanStatus)
+      ? supabase.getPlanStatus()
+      : { isSuperAdmin: false, maxAllowedGroups: 1 };
+    const maxAllowed = status.isSuperAdmin ? 9999 : (status.maxAllowedGroups || 1);
+
+    const filterText = (groupSearchInput ? groupSearchInput.value : '').toLowerCase().trim();
+    const combinedSet = new Set([...groups, ...allDetectedGroups]);
+    let list = Array.from(combinedSet);
+    if (filterText) {
+      list = list.filter(g => g.toLowerCase().includes(filterText));
+    }
+
+    if (!status.isSuperAdmin && list.length > maxAllowed) {
+      modalTempSelectedGroups = new Set(list.slice(0, maxAllowed));
+      showToast(`Seu plano permite até ${maxAllowed} grupo(s). Os primeiros ${maxAllowed} foram marcados!`, 'ℹ️');
+    } else {
+      modalTempSelectedGroups = new Set(list);
+      showToast(`Todos os ${list.length} grupos foram marcados!`, '✅');
+    }
+
+    renderAllDetectedGroupsList();
+    updateModalQuotaBadge();
+  }
+
+  function handleModalUnselectAllGroups() {
+    modalTempSelectedGroups.clear();
+    renderAllDetectedGroupsList();
+    updateModalQuotaBadge();
+    showToast('Todos os grupos foram desmarcados.', '◻️');
   }
 
   function closeGroupRegisterModal() {

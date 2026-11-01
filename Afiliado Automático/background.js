@@ -191,6 +191,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === 'get_registered_groups') {
+    chrome.storage.local.get([
+      'ml_whatsapp_groups',
+      'saved_whatsapp_groups',
+      'all_detected_whatsapp_groups',
+      'ml_pinned_group',
+      'pinned_whatsapp_group'
+    ]).then(stored => {
+      const groups = (Array.isArray(stored.ml_whatsapp_groups) && stored.ml_whatsapp_groups.length > 0)
+        ? stored.ml_whatsapp_groups
+        : (Array.isArray(stored.all_detected_whatsapp_groups) && stored.all_detected_whatsapp_groups.length > 0
+          ? stored.all_detected_whatsapp_groups
+          : (Array.isArray(stored.saved_whatsapp_groups) && stored.saved_whatsapp_groups.length > 0
+            ? stored.saved_whatsapp_groups
+            : []));
+      const pinned = stored.ml_pinned_group || stored.pinned_whatsapp_group || '';
+      sendResponse({ success: true, groups, pinned });
+    }).catch(err => sendResponse({ success: false, groups: [], error: err.message }));
+    return true;
+  }
+
   // 6. GERENCIAMENTO DE CUPONS (Desativado)
   if (['get_coupons', 'save_coupon', 'delete_coupon', 'toggle_coupon', 'sync_ml_coupons', 'register_detected_coupon'].includes(message.action)) {
     sendResponse({ success: true, coupons: [], count: 0 });

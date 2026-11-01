@@ -666,14 +666,38 @@
     const styleSelect = document.getElementById('amzModalStyleSelect');
 
     try {
-      const stored = await chrome.storage.local.get(['saved_whatsapp_groups', 'pinned_whatsapp_group', 'ml_copy_style']);
-      const groups = stored.saved_whatsapp_groups || [];
-      const pinned = stored.pinned_whatsapp_group || '';
+      const stored = await chrome.storage.local.get([
+        'ml_whatsapp_groups',
+        'saved_whatsapp_groups',
+        'all_detected_whatsapp_groups',
+        'ml_selected_dispatch_groups',
+        'ml_pinned_group',
+        'pinned_whatsapp_group',
+        'ml_copy_style'
+      ]);
+      let groups = (Array.isArray(stored.ml_whatsapp_groups) && stored.ml_whatsapp_groups.length > 0)
+        ? stored.ml_whatsapp_groups
+        : (Array.isArray(stored.all_detected_whatsapp_groups) && stored.all_detected_whatsapp_groups.length > 0
+          ? stored.all_detected_whatsapp_groups
+          : (Array.isArray(stored.saved_whatsapp_groups) && stored.saved_whatsapp_groups.length > 0
+            ? stored.saved_whatsapp_groups
+            : []));
+      let pinned = stored.ml_pinned_group || stored.pinned_whatsapp_group || '';
       if (stored.ml_copy_style) styleSelect.value = stored.ml_copy_style;
+
+      if (groups.length === 0) {
+        try {
+          const bgRes = await chrome.runtime.sendMessage({ action: 'get_registered_groups' });
+          if (bgRes && Array.isArray(bgRes.groups) && bgRes.groups.length > 0) {
+            groups = bgRes.groups;
+            pinned = bgRes.pinned || pinned;
+          }
+        } catch (_) {}
+      }
 
       groupSelect.innerHTML = '';
       if (groups.length === 0) {
-        groupSelect.innerHTML = '<option value="">Nenhum grupo sincronizado</option>';
+        groupSelect.innerHTML = '<option value="">Nenhum grupo cadastrado (abra a extensão para cadastrar)</option>';
       } else {
         groups.forEach(g => {
           const opt = document.createElement('option');

@@ -1,10 +1,11 @@
 {
-  "version": "2.3.0",
-  "buildTimestamp": 1730421000000,
-  "updatedAt": "2026-10-31T20:45:00.000Z",
+  "version": "2.3.1",
+  "buildTimestamp": 1730424600000,
+  "updatedAt": "2026-10-31T21:40:00.000Z",
   "features": [
-    "Radar de Ofertas Relâmpago e Bugs de Preço no Dashboard",
-    "Cadência e Fila Inteligente Anti-Bloqueio com modos Rápido, Seguro e Dia Todo",
-    "Preservação integral da tag oficial de afiliado e disparo inteligente de favoritos"
+    "Radar de Ofertas 100% Reais com Links Oficiais Validados e Importador Direto",
+    "Correção completa na extração de preços, comissão e ordenação por vendas na Shopee",
+    "Reconhecimento de grupos WhatsApp no disparo direto in-page da Amazon e Shopee",
+    "Seleção rápida Marcar Tudo e Desmarcar Tudo no modal de cadastro de grupos"
   ]
 }
