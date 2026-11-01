@@ -495,29 +495,47 @@
   // =========================================================================
 
   function initAmazonInPageUI() {
-    const isPDP = !!(getAsinFromUrl(window.location.href) || getAsinFromDom());
-    if (isPDP) {
-      injectFloatingButton();
-    }
+    checkAndInjectAmazonUI();
     injectSearchCardButtons();
 
     // Monitora carregamento dinâmico
     window.addEventListener('scroll', debounce(injectSearchCardButtons, 400), { passive: true });
+    setInterval(checkAndInjectAmazonUI, 1500);
   }
 
-  function injectFloatingButton() {
+  function checkAndInjectAmazonUI() {
+    const isPDP = !!(getAsinFromUrl(window.location.href) || getAsinFromDom());
+    if (isPDP && !document.getElementById('amz-afiliado-floating-btn')) {
+      const product = extractCurrentPageProduct();
+      if (product) {
+        createFloatingProductButton(product);
+      }
+    }
+  }
+
+  function createFloatingProductButton(product) {
     if (document.getElementById('amz-afiliado-floating-btn')) return;
 
-    const btn = document.createElement('button');
+    const btn = document.createElement('div');
     btn.id = 'amz-afiliado-floating-btn';
-    btn.title = 'Disparar esta oferta no WhatsApp';
+    const commVal = product.rawPrice ? (product.rawPrice * 0.09) : 0;
+    const commFormatted = commVal > 0 ? `R$ ${commVal.toFixed(2).replace('.', ',')}` : 'R$ 0,00';
+
     btn.innerHTML = `
-      <div class="amz-float-icon">⚡</div>
-      <div class="amz-float-label">Disparar Oferta</div>
+      <div class="ml-float-content">
+        <svg viewBox="0 0 24 24" class="ml-float-wa-icon">
+          <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2z"/>
+        </svg>
+        <div class="ml-float-text-box">
+          <span class="ml-float-main-text">⚡ Disparar Oferta WhatsApp</span>
+          <span class="ml-float-comm-pill">💰 Ganho: <b>${commFormatted}</b> (9% • Amazon)</span>
+        </div>
+      </div>
     `;
 
     btn.addEventListener('click', () => {
-      openInPageDispatchModal();
+      const fresh = extractCurrentPageProduct() || product;
+      openQuickDispatchModal(fresh);
     });
 
     document.body.appendChild(btn);
@@ -542,7 +560,7 @@
         e.stopPropagation();
         const prodData = extractSingleCardProduct(card, asin);
         if (prodData) {
-          openInPageDispatchModal(prodData);
+          openQuickDispatchModal(prodData);
         }
       });
 
@@ -586,15 +604,18 @@
       platform: 'amazon',
       platformName: 'Amazon',
       platformIcon: '🔷',
-      platformBadge: 'Amazon'
+      platformBadge: 'Amazon',
+      commissionRate: 9,
+      commissionPrice: rawPrice ? `R$ ${(rawPrice * 0.09).toFixed(2).replace('.', ',')}` : 'R$ 0,00',
+      commissionPercent: '9%'
     };
   }
 
   // =========================================================================
-  // MODAL IN-PAGE PARA DISPARO RÁPIDO
+  // MODAL IN-PAGE PARA DISPARO RÁPIDO (DESIGN UNIFICADO PADRÃO MERCADO LIVRE)
   // =========================================================================
 
-  async function openInPageDispatchModal(customProduct = null) {
+  async function openQuickDispatchModal(customProduct = null) {
     const existing = document.getElementById('amz-afiliado-modal-overlay');
     if (existing) existing.remove();
 
@@ -604,155 +625,259 @@
       return;
     }
 
-    const modal = document.createElement('div');
-    modal.id = 'amz-afiliado-modal-overlay';
-    modal.innerHTML = `
-      <div class="amz-modal-card">
-        <div class="amz-modal-header">
-          <div class="amz-modal-brand">
-            <span class="amz-modal-brand-badge">🔷 Amazon</span>
-            <span class="amz-modal-title">Disparar Oferta</span>
+    let groups = [];
+    let affiliateTag = '';
+    let pinnedGroup = '';
+    let isFavorited = false;
+
+    try {
+      const data = await chrome.storage.local.get([
+        'ml_whatsapp_groups',
+        'all_detected_whatsapp_groups',
+        'saved_whatsapp_groups',
+        'amazon_affiliate_tag',
+        'ml_affiliate_tag',
+        'ml_pinned_group',
+        'pinned_whatsapp_group',
+        'ml_favorite_offers'
+      ]);
+
+      groups = (Array.isArray(data.ml_whatsapp_groups) && data.ml_whatsapp_groups.length > 0)
+        ? data.ml_whatsapp_groups
+        : (Array.isArray(data.all_detected_whatsapp_groups) && data.all_detected_whatsapp_groups.length > 0
+          ? data.all_detected_whatsapp_groups
+          : (Array.isArray(data.saved_whatsapp_groups) && data.saved_whatsapp_groups.length > 0
+            ? data.saved_whatsapp_groups
+            : []));
+
+      pinnedGroup = data.ml_pinned_group || data.pinned_whatsapp_group || '';
+      affiliateTag = (data.amazon_affiliate_tag || '').trim();
+
+      const favList = Array.isArray(data.ml_favorite_offers) ? data.ml_favorite_offers : [];
+      const cleanUrl = (product.url || window.location.href).split('?')[0].split('#')[0];
+      isFavorited = favList.some(f => f.url && f.url.split('?')[0].split('#')[0] === cleanUrl);
+    } catch (e) {}
+
+    // Fallback RPC com o background caso o storage local ainda esteja vazio
+    if (groups.length === 0) {
+      try {
+        const bgRes = await chrome.runtime.sendMessage({ action: 'get_registered_groups' });
+        if (bgRes && Array.isArray(bgRes.groups) && bgRes.groups.length > 0) {
+          groups = bgRes.groups;
+          pinnedGroup = bgRes.pinned || pinnedGroup;
+        }
+      } catch (e) {}
+    }
+
+    const overlay = document.createElement('div');
+    overlay.id = 'amz-afiliado-modal-overlay';
+
+    let selectOptions = '';
+    if (groups.length === 0) {
+      selectOptions = '<option value="">Nenhum grupo cadastrado (abra a extensão para cadastrar)</option>';
+    } else {
+      selectOptions = groups.map(g => {
+        const isSelected = (pinnedGroup && g === pinnedGroup) || (!pinnedGroup && g === groups[0]);
+        const isPinnedBadge = (pinnedGroup && g === pinnedGroup) ? ' 📌 (Padrão)' : '';
+        return `<option value="${escapeHtml(g)}" ${isSelected ? 'selected' : ''}>${escapeHtml(g)}${isPinnedBadge}</option>`;
+      }).join('');
+    }
+
+    const commVal = product.rawPrice ? (product.rawPrice * 0.09) : 0;
+    const commFormatted = commVal > 0 ? `R$ ${commVal.toFixed(2).replace('.', ',')}` : (product.commissionPrice || 'R$ 0,00');
+    const isInitiallyPinned = pinnedGroup && groups.includes(pinnedGroup);
+
+    overlay.innerHTML = `
+      <div class="ml-afiliado-modal-card">
+        <div class="ml-modal-header">
+          <div class="ml-modal-title-row">
+            <span class="ml-modal-badge" style="background:#2563EB;color:#FFF;">⚡ AFILIADO AMAZON</span>
+            <span class="ml-modal-title">Disparar Oferta</span>
           </div>
-          <button id="amzModalCloseBtn" class="amz-modal-close" title="Fechar">&times;</button>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button id="amzModalFavBtn" class="ml-modal-pin-btn ${isFavorited ? 'active' : ''}" style="margin-right:4px;" title="Salvar / Remover dos Favoritos" type="button">
+              <span id="amzModalFavIcon">${isFavorited ? '★' : '⭐'}</span> <span id="amzModalFavText">${isFavorited ? 'Favoritado' : 'Favoritar'}</span>
+            </button>
+            <button class="ml-modal-close" id="amzModalClose">&times;</button>
+          </div>
         </div>
 
-        <div class="amz-modal-body">
-          <div class="amz-modal-prod-summary">
-            <img src="${product.imageUrl || ''}" class="amz-modal-img" alt="Produto">
-            <div class="amz-modal-prod-info">
-              <div class="amz-modal-prod-title">${escapeHtml(product.title)}</div>
-              <div class="amz-modal-prod-price">${product.price} ${product.discount ? `<span class="amz-modal-badge">${product.discount}</span>` : ''}</div>
+        <div class="ml-modal-product">
+          <div style="position:relative;display:inline-block;flex-shrink:0;">
+            <img src="${product.imageUrl || ''}" class="ml-modal-img" alt="Produto" onerror="this.style.display='none'">
+          </div>
+          <div class="ml-modal-info">
+            <div class="ml-modal-p-title">${escapeHtml(product.title)}</div>
+            <div class="ml-modal-p-price">
+              ${product.originalPrice && product.originalPrice !== product.price ? `<span style="text-decoration:line-through;color:#94a3b8;font-size:12px;margin-right:6px;">${escapeHtml(product.originalPrice)}</span>` : ''}
+              ${escapeHtml(product.price)}
+              ${product.discount ? `<span class="ml-modal-p-disc">${escapeHtml(product.discount)}</span>` : ''}
+            </div>
+            <div class="ml-modal-p-comm-row">
+              <span class="ml-modal-comm-badge">💰 Ganho: <b>${commFormatted}</b> (9% • Amazon)</span>
+              <span class="ml-modal-cat-tag">Amazon Brasil</span>
             </div>
           </div>
-
-          <div class="amz-modal-field">
-            <label class="amz-modal-label">Grupo de Destino (WhatsApp):</label>
-            <select id="amzModalGroupSelect" class="amz-modal-select">
-              <option value="">Carregando grupos...</option>
-            </select>
-          </div>
-
-          <div class="amz-modal-field">
-            <label class="amz-modal-label">Modelo de Copy (IA):</label>
-            <select id="amzModalStyleSelect" class="amz-modal-select">
-              <option value="vantagens_gatilhos" selected>⭐ Vantagens & Gatilhos</option>
-              <option value="aleatorio">🎲 Aleatório (O sistema escolhe)</option>
-              <option value="curta_direta">⚡ Curta & Direta (Oferta Relâmpago)</option>
-              <option value="detalhada_persuasiva">📋 Detalhada & Completa</option>
-              <option value="urgencia_escassez">🔥 Urgência Máxima</option>
-            </select>
-          </div>
-
-          <div id="amzModalStatus" class="amz-modal-status"></div>
-
-          <button id="amzModalSendBtn" class="amz-modal-btn-send">
-            🚀 Disparar para o WhatsApp
-          </button>
         </div>
+
+        <div class="ml-modal-field">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label style="margin-bottom: 0;">Selecione o Grupo do WhatsApp:</label>
+            <button type="button" id="amzModalPinGroupBtn" class="ml-modal-pin-btn ${isInitiallyPinned ? 'active' : ''}" title="Fixar este grupo como padrão para não ter que selecionar toda hora">
+              📌 <span id="amzModalPinGroupText">${isInitiallyPinned ? 'Grupo Padrão Fixado' : 'Fixar como padrão'}</span>
+            </button>
+          </div>
+          <select id="amzModalGroupSelect" class="ml-modal-select" ${groups.length === 0 ? 'disabled' : ''}>
+            ${selectOptions}
+          </select>
+        </div>
+
+        <button id="amzModalSendBtn" class="ml-modal-btn-send" ${groups.length === 0 ? 'disabled' : ''}>
+          <span>🚀 Disparar Agora no WhatsApp Web</span>
+        </button>
+
+        <div id="amzModalStatus" class="ml-modal-status"></div>
       </div>
     `;
 
-    document.body.appendChild(modal);
+    document.body.appendChild(overlay);
 
-    document.getElementById('amzModalCloseBtn').addEventListener('click', () => modal.remove());
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.remove();
+    document.getElementById('amzModalClose').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.remove();
     });
 
-    // Carrega grupos e grupo fixado
-    const groupSelect = document.getElementById('amzModalGroupSelect');
     const sendBtn = document.getElementById('amzModalSendBtn');
     const statusDiv = document.getElementById('amzModalStatus');
-    const styleSelect = document.getElementById('amzModalStyleSelect');
+    const select = document.getElementById('amzModalGroupSelect');
+    const pinGroupBtn = document.getElementById('amzModalPinGroupBtn');
+    const pinGroupText = document.getElementById('amzModalPinGroupText');
 
-    try {
-      const stored = await chrome.storage.local.get([
-        'ml_whatsapp_groups',
-        'saved_whatsapp_groups',
-        'all_detected_whatsapp_groups',
-        'ml_selected_dispatch_groups',
-        'ml_pinned_group',
-        'pinned_whatsapp_group',
-        'ml_copy_style'
-      ]);
-      let groups = (Array.isArray(stored.ml_whatsapp_groups) && stored.ml_whatsapp_groups.length > 0)
-        ? stored.ml_whatsapp_groups
-        : (Array.isArray(stored.all_detected_whatsapp_groups) && stored.all_detected_whatsapp_groups.length > 0
-          ? stored.all_detected_whatsapp_groups
-          : (Array.isArray(stored.saved_whatsapp_groups) && stored.saved_whatsapp_groups.length > 0
-            ? stored.saved_whatsapp_groups
-            : []));
-      let pinned = stored.ml_pinned_group || stored.pinned_whatsapp_group || '';
-      if (stored.ml_copy_style) styleSelect.value = stored.ml_copy_style;
+    if (pinGroupBtn) {
+      pinGroupBtn.addEventListener('click', async () => {
+        const currentGroup = select.value;
+        if (!currentGroup) return;
 
-      if (groups.length === 0) {
-        try {
-          const bgRes = await chrome.runtime.sendMessage({ action: 'get_registered_groups' });
-          if (bgRes && Array.isArray(bgRes.groups) && bgRes.groups.length > 0) {
-            groups = bgRes.groups;
-            pinned = bgRes.pinned || pinned;
-          }
-        } catch (_) {}
-      }
+        if (pinnedGroup === currentGroup) {
+          pinnedGroup = '';
+          await chrome.storage.local.set({ ml_pinned_group: '' });
+          pinGroupBtn.classList.remove('active');
+          pinGroupText.textContent = 'Fixar como padrão';
+          statusDiv.textContent = 'Padrão removido.';
+          statusDiv.className = 'ml-modal-status info';
+        } else {
+          pinnedGroup = currentGroup;
+          await chrome.storage.local.set({ ml_pinned_group: currentGroup });
+          pinGroupBtn.classList.add('active');
+          pinGroupText.textContent = 'Grupo Padrão Fixado';
+          statusDiv.textContent = `📌 Grupo "${currentGroup}" fixado como padrão!`;
+          statusDiv.className = 'ml-modal-status success';
+        }
 
-      groupSelect.innerHTML = '';
-      if (groups.length === 0) {
-        groupSelect.innerHTML = '<option value="">Nenhum grupo cadastrado (abra a extensão para cadastrar)</option>';
-      } else {
-        groups.forEach(g => {
-          const opt = document.createElement('option');
-          opt.value = g;
-          opt.textContent = g + (g === pinned ? ' 📌 (Padrão)' : '');
-          if (g === pinned) opt.selected = true;
-          groupSelect.appendChild(opt);
+        Array.from(select.options).forEach(opt => {
+          const isPin = opt.value && opt.value === pinnedGroup;
+          opt.textContent = opt.value + (isPin ? ' 📌 (Padrão)' : '');
         });
-      }
-    } catch (e) {}
+      });
+
+      select.addEventListener('change', () => {
+        const isNowPinned = pinnedGroup && select.value === pinnedGroup;
+        if (isNowPinned) {
+          pinGroupBtn.classList.add('active');
+          pinGroupText.textContent = 'Grupo Padrão Fixado';
+        } else {
+          pinGroupBtn.classList.remove('active');
+          pinGroupText.textContent = 'Fixar como padrão';
+        }
+      });
+    }
+
+    const favBtn = document.getElementById('amzModalFavBtn');
+    const favIcon = document.getElementById('amzModalFavIcon');
+    const favText = document.getElementById('amzModalFavText');
+
+    if (favBtn) {
+      favBtn.addEventListener('click', async () => {
+        try {
+          const resp = await chrome.runtime.sendMessage({
+            action: 'toggle_favorite',
+            product: {
+              ...product,
+              platform: 'amazon',
+              commissionRate: 9
+            }
+          });
+          if (resp && resp.success) {
+            isFavorited = resp.isFavorite;
+            if (isFavorited) {
+              favBtn.classList.add('active');
+              if (favIcon) favIcon.textContent = '★';
+              if (favText) favText.textContent = 'Favoritado';
+              statusDiv.textContent = '⭐ Oferta adicionada aos Favoritos com sucesso!';
+              statusDiv.className = 'ml-modal-status success';
+            } else {
+              favBtn.classList.remove('active');
+              if (favIcon) favIcon.textContent = '⭐';
+              if (favText) favText.textContent = 'Favoritar';
+              statusDiv.textContent = 'Oferta removida dos seus Favoritos.';
+              statusDiv.className = 'ml-modal-status info';
+            }
+          }
+        } catch (e) {
+          console.warn('Erro ao favoritar oferta Amazon:', e);
+        }
+      });
+    }
 
     sendBtn.addEventListener('click', async () => {
-      const group = groupSelect.value;
-      if (!group) {
-        statusDiv.textContent = 'Selecione um grupo de WhatsApp.';
-        statusDiv.className = 'amz-modal-status error';
+      const selectedGroup = select.value;
+      if (!selectedGroup) {
+        statusDiv.textContent = 'Cadastre ao menos um grupo no ícone da extensão no topo!';
+        statusDiv.className = 'ml-modal-status error';
         return;
       }
 
       sendBtn.disabled = true;
-      statusDiv.textContent = '⏳ Obtendo link curto oficial da barra Amazon...';
-      statusDiv.className = 'amz-modal-status info';
+      sendBtn.textContent = 'Enviando oferta para o WhatsApp...';
+      statusDiv.textContent = 'Gerando link e copy com IA...';
+      statusDiv.className = 'ml-modal-status info';
 
-      // 1. Tenta obter o link curto oficial do SiteStripe DIRETAMENTE com o clique do usuário!
       try {
-        const stored = await chrome.storage.local.get(['amazon_affiliate_tag']);
-        const tag = (stored.amazon_affiliate_tag || '').trim();
-        const shortLink = await generateAmazonSiteStripeLink(product.asin, tag);
-        if (shortLink && (shortLink.includes('link.amazon/') || shortLink.includes('amzn.to/') || shortLink.includes('a.co/'))) {
-          product.affiliateShortLink = shortLink;
-          product.url = shortLink;
-          console.log('[Afiliado Automático] ✅ Link curto oficial Amazon obtido no clique:', shortLink);
+        try {
+          const shortLink = await generateAmazonSiteStripeLink(product.asin, affiliateTag);
+          if (shortLink && (shortLink.includes('link.amazon/') || shortLink.includes('amzn.to/') || shortLink.includes('a.co/'))) {
+            product.affiliateShortLink = shortLink;
+            product.url = shortLink;
+          }
+        } catch(e) {}
+
+        const resp = await chrome.runtime.sendMessage({
+          action: 'send_offer',
+          productData: {
+            ...product,
+            platform: 'amazon',
+            commissionRate: 9
+          },
+          affiliateTag: affiliateTag,
+          groupName: selectedGroup,
+          platform: 'amazon'
+        });
+
+        if (resp && resp.success) {
+          sendBtn.textContent = '✅ Disparado com Sucesso!';
+          sendBtn.style.backgroundColor = '#10B981';
+          statusDiv.textContent = `Oferta enviada para "${selectedGroup}"!`;
+          statusDiv.className = 'ml-modal-status success';
+          setTimeout(() => overlay.remove(), 2500);
+        } else {
+          throw new Error(resp?.error || 'Falha ao disparar');
         }
       } catch (err) {
-        console.warn('[Afiliado Automático] Falha ao capturar link curto no clique:', err);
-      }
-
-      statusDiv.textContent = 'Gerando copy com IA e preparando envio...';
-
-      chrome.runtime.sendMessage({
-        action: 'send_offer',
-        productData: product,
-        groupName: group,
-        copyStyle: styleSelect.value
-      }, (resp) => {
         sendBtn.disabled = false;
-        if (resp && resp.success) {
-          statusDiv.textContent = '✅ Disparado com sucesso!';
-          statusDiv.className = 'amz-modal-status success';
-          setTimeout(() => modal.remove(), 1400);
-        } else {
-          statusDiv.textContent = `❌ ${(resp && resp.error) || 'Erro no envio'}`;
-          statusDiv.className = 'amz-modal-status error';
-        }
-      });
+        sendBtn.textContent = 'Tentar Novamente';
+        statusDiv.textContent = `Erro: ${err.message}`;
+        statusDiv.className = 'ml-modal-status error';
+      }
     });
   }
 
@@ -816,28 +941,50 @@
         position: fixed;
         bottom: 24px;
         right: 24px;
-        z-index: 999999;
-        display: flex;
-        align-items: center;
-        gap: 8px;
+        z-index: 2147483647;
         background: linear-gradient(135deg, #FF9900 0%, #E68A00 100%);
         color: #111827;
-        border: 2px solid #FFFFFF;
-        padding: 10px 18px;
+        padding: 9px 18px;
         border-radius: 50px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        font-size: 14px;
-        font-weight: 700;
+        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22), 0 0 0 2px rgba(255, 153, 0, 0.4);
         cursor: pointer;
-        box-shadow: 0 4px 16px rgba(255, 153, 0, 0.45);
-        transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        font-weight: 700;
+        font-size: 13px;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 10px;
       }
       #amz-afiliado-floating-btn:hover {
-        transform: translateY(-2px) scale(1.03);
-        box-shadow: 0 6px 22px rgba(255, 153, 0, 0.6);
+        transform: translateY(-2px) scale(1.02);
+        box-shadow: 0 6px 22px rgba(0, 0, 0, 0.3);
       }
-      .amz-float-icon {
-        font-size: 16px;
+      .ml-float-content {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .ml-float-wa-icon {
+        width: 22px;
+        height: 22px;
+        fill: #25D366;
+        flex-shrink: 0;
+      }
+      .ml-float-text-box {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.25;
+      }
+      .ml-float-main-text {
+        font-size: 13px;
+        font-weight: 800;
+        color: #111827;
+      }
+      .ml-float-comm-pill {
+        font-size: 11px;
+        font-weight: 700;
+        color: #065F46;
       }
 
       .amz-card-actions-wrapper {
@@ -865,145 +1012,203 @@
 
       #amz-afiliado-modal-overlay {
         position: fixed;
-        inset: 0;
-        background: rgba(15, 23, 42, 0.65);
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(15, 23, 42, 0.6);
         backdrop-filter: blur(4px);
-        z-index: 9999999;
+        z-index: 2147483647;
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 16px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       }
-      .amz-modal-card {
+      .ml-afiliado-modal-card {
         background: #FFFFFF;
-        width: 100%;
+        width: 90%;
         max-width: 440px;
         border-radius: 14px;
-        box-shadow: 0 20px 40px rgba(0,0,0,0.25);
-        overflow: hidden;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        padding: 20px;
+        position: relative;
+        animation: mlModalFadeIn 0.2s ease-out;
       }
-      .amz-modal-header {
-        background: #232F3E;
-        color: #FFFFFF;
-        padding: 12px 16px;
+      @keyframes mlModalFadeIn {
+        from { opacity: 0; transform: scale(0.95); }
+        to { opacity: 1; transform: scale(1); }
+      }
+      .ml-modal-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
+        margin-bottom: 14px;
       }
-      .amz-modal-brand {
+      .ml-modal-title-row {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
       }
-      .amz-modal-brand-badge {
-        background: #FF9900;
-        color: #111827;
+      .ml-modal-badge {
+        background: #2563EB;
+        color: #FFFFFF;
+        font-size: 10px;
+        font-weight: 800;
         padding: 2px 7px;
         border-radius: 4px;
-        font-size: 11px;
-        font-weight: 800;
       }
-      .amz-modal-title {
+      .ml-modal-title {
+        font-size: 15px;
         font-weight: 700;
-        font-size: 14px;
+        color: #1D2640;
       }
-      .amz-modal-close {
-        background: transparent;
+      .ml-modal-close {
+        background: none;
         border: none;
-        color: #94A3B8;
-        font-size: 22px;
-        cursor: pointer;
+        font-size: 24px;
         line-height: 1;
+        cursor: pointer;
+        color: #64748B;
       }
-      .amz-modal-close:hover { color: #FFF; }
-      .amz-modal-body {
-        padding: 16px;
+      .ml-modal-pin-btn {
+        background: #F1F5F9;
+        border: 1px solid #CBD5E1;
+        color: #475569;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.15s ease;
       }
-      .amz-modal-prod-summary {
+      .ml-modal-pin-btn:hover { background: #E2E8F0; }
+      .ml-modal-pin-btn.active {
+        background: #FEF3C7;
+        border-color: #F59E0B;
+        color: #B45309;
+      }
+      .ml-modal-product {
         display: flex;
         gap: 12px;
-        align-items: center;
         background: #F8FAFC;
-        padding: 10px;
+        padding: 12px;
         border-radius: 8px;
-        margin-bottom: 14px;
         border: 1px solid #E2E8F0;
+        margin-bottom: 14px;
       }
-      .amz-modal-img {
-        width: 52px;
-        height: 52px;
+      .ml-modal-img {
+        width: 54px;
+        height: 54px;
         object-fit: contain;
         border-radius: 6px;
         background: #FFF;
       }
-      .amz-modal-prod-info {
+      .ml-modal-info {
         flex: 1;
         min-width: 0;
       }
-      .amz-modal-prod-title {
+      .ml-modal-p-title {
         font-size: 12px;
         font-weight: 600;
         color: #1E293B;
-        white-space: nowrap;
+        line-height: 1.3;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
         overflow: hidden;
-        text-overflow: ellipsis;
       }
-      .amz-modal-prod-price {
+      .ml-modal-p-price {
         font-size: 14px;
         font-weight: 800;
-        color: #059669;
-        margin-top: 3px;
+        color: #0F172A;
+        margin-top: 4px;
       }
-      .amz-modal-badge {
-        font-size: 10px;
-        background: #EF4444;
-        color: #FFF;
+      .ml-modal-p-disc {
+        color: #00A650;
+        font-size: 11px;
+        font-weight: 800;
+        background: #DCFCE7;
         padding: 1px 5px;
         border-radius: 4px;
         margin-left: 6px;
       }
-      .amz-modal-field {
-        margin-bottom: 12px;
+      .ml-modal-p-comm-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 5px;
+        flex-wrap: wrap;
       }
-      .amz-modal-label {
-        display: block;
+      .ml-modal-comm-badge {
         font-size: 11px;
+        color: #047857;
+        background: #D1FAE5;
+        padding: 2px 6px;
+        border-radius: 4px;
         font-weight: 700;
-        color: #475569;
-        margin-bottom: 4px;
       }
-      .amz-modal-select {
+      .ml-modal-cat-tag {
+        font-size: 10px;
+        color: #64748B;
+        background: #E2E8F0;
+        padding: 2px 5px;
+        border-radius: 4px;
+      }
+      .ml-modal-field {
+        margin-bottom: 14px;
+      }
+      .ml-modal-field label {
+        display: block;
+        font-size: 12px;
+        font-weight: 700;
+        color: #334155;
+        margin-bottom: 6px;
+      }
+      .ml-modal-select {
         width: 100%;
-        padding: 8px 10px;
+        padding: 9px 12px;
         border: 1px solid #CBD5E1;
-        border-radius: 6px;
+        border-radius: 8px;
         font-size: 13px;
         color: #1E293B;
+        background: #FFF;
+        outline: none;
       }
-      .amz-modal-btn-send {
+      .ml-modal-select:focus {
+        border-color: #2563EB;
+        box-shadow: 0 0 0 2px rgba(37,99,235,0.15);
+      }
+      .ml-modal-btn-send {
         width: 100%;
         background: #25D366;
         color: #FFF;
         border: none;
-        padding: 11px;
+        padding: 12px;
         border-radius: 8px;
         font-size: 14px;
-        font-weight: 700;
+        font-weight: 800;
         cursor: pointer;
-        transition: background 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: background 0.15s ease;
+      }
+      .ml-modal-btn-send:hover { background: #20BD5A; }
+      .ml-modal-btn-send:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .ml-modal-status {
         margin-top: 10px;
-      }
-      .amz-modal-btn-send:hover { background: #20BD5A; }
-      .amz-modal-status {
-        margin-top: 8px;
         font-size: 12px;
-        text-align: center;
         font-weight: 600;
+        text-align: center;
+        min-height: 18px;
       }
-      .amz-modal-status.info { color: #2563EB; }
-      .amz-modal-status.success { color: #059669; }
-      .amz-modal-status.error { color: #DC2626; }
+      .ml-modal-status.info { color: #2563EB; }
+      .ml-modal-status.success { color: #059669; }
+      .ml-modal-status.error { color: #DC2626; }
     `;
     document.head.appendChild(style);
   }

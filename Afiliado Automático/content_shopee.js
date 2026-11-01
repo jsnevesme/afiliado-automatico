@@ -600,42 +600,74 @@
   }
 
   // =========================================================================
-  // BOTÃO FLUTUANTE E MODAL IN-PAGE NA SHOPEE
+  // BOTÃO FLUTUANTE E MODAL IN-PAGE NA SHOPEE (PADRÃO UNIFICADO)
   // =========================================================================
 
+  function isShopeeProductPage(url = window.location.href) {
+    if (!url) return false;
+    if (url.includes('careers.') || url.includes('help.') || url.includes('/legal/') || url.includes('/buyer/')) {
+      return false;
+    }
+    if (isShopeeProductUrl(url)) return true;
+    if (document.querySelector('.WBVL_7, .product-briefing, div[class*="WBVL_7"], [class*="product-briefing"], .attM6q')) return true;
+    const jsonLd = extractShopeeJsonLd();
+    if (jsonLd && (jsonLd['@type'] === 'Product' || jsonLd.offers)) return true;
+    return false;
+  }
+
   function initShopeeInPageUI() {
-    if (isShopeeProductUrl(window.location.href)) {
+    checkAndInjectShopeeUI();
+    window.addEventListener('scroll', debounce(injectSearchCardButtons, 400), { passive: true });
+    // Periodic check para capturar navegação client-side SPA da Shopee
+    setInterval(checkAndInjectShopeeUI, 1200);
+  }
+
+  function checkAndInjectShopeeUI() {
+    if (isShopeeProductPage()) {
       injectFloatingButton();
+    } else {
+      const existingBtn = document.getElementById('shp-afiliado-floating-btn');
+      if (existingBtn) existingBtn.remove();
     }
     injectSearchCardButtons();
-
-    window.addEventListener('scroll', debounce(injectSearchCardButtons, 400), { passive: true });
   }
 
   function injectFloatingButton() {
     if (document.getElementById('shp-afiliado-floating-btn')) return;
 
-    const btn = document.createElement('button');
+    const product = extractCurrentPageProduct();
+    const commVal = product && product.rawPrice ? (product.rawPrice * 0.14) : 0;
+    const commFormatted = commVal > 0 ? `R$ ${commVal.toFixed(2).replace('.', ',')}` : 'R$ 0,00';
+
+    const btn = document.createElement('div');
     btn.id = 'shp-afiliado-floating-btn';
-    btn.title = 'Disparar esta oferta no WhatsApp';
+    btn.title = 'Disparar esta oferta no WhatsApp Web';
     btn.innerHTML = `
-      <div class="shp-float-icon">⚡</div>
-      <div class="shp-float-label">Disparar Oferta</div>
+      <div class="ml-float-content">
+        <svg viewBox="0 0 24 24" class="ml-float-wa-icon">
+          <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2z"/>
+        </svg>
+        <div class="ml-float-text-box">
+          <span class="ml-float-main-text">⚡ AFILIADO SHOPEE</span>
+          <span class="ml-float-comm-pill">💰 Ganho: <b>${commFormatted}</b> (14%)</span>
+        </div>
+      </div>
     `;
 
     btn.addEventListener('click', () => {
-      openInPageDispatchModal();
+      const fresh = extractCurrentPageProduct() || product;
+      openInPageDispatchModal(fresh);
     });
 
     document.body.appendChild(btn);
   }
 
   function injectSearchCardButtons() {
-    const cards = document.querySelectorAll('li.shopee-search-item-result__item, div[data-sqe="item"]');
+    const cards = document.querySelectorAll('li.shopee-search-item-result__item, div[data-sqe="item"], div.col-xs-2-4');
     for (const card of cards) {
       if (card.querySelector('.shp-card-quick-dispatch')) continue;
 
-      const linkEl = card.querySelector('a[data-sqe="link"], a[href*="-i."]');
+      const linkEl = card.querySelector('a[data-sqe="link"], a[href*="-i."], a[href*="/product/"]');
       if (!linkEl || !linkEl.href) continue;
 
       const quickBtn = document.createElement('button');
@@ -703,7 +735,7 @@
   }
 
   // =========================================================================
-  // MODAL IN-PAGE PARA DISPARO RÁPIDO
+  // MODAL IN-PAGE PARA DISPARO RÁPIDO (EXATO PADRÃO UNIFICADO)
   // =========================================================================
 
   async function openInPageDispatchModal(customProduct = null) {
@@ -711,143 +743,256 @@
     if (existing) existing.remove();
 
     const product = customProduct || extractCurrentPageProduct();
-    if (!product || !product.url || !isShopeeProductUrl(product.url)) {
-      alert('Não foi possível identificar as informações de um produto válido da Shopee.');
+    if (!product || !product.url) {
+      alert('Não foi possível identificar as informações deste produto da Shopee.');
       return;
     }
 
-    const modal = document.createElement('div');
-    modal.id = 'shp-afiliado-modal-overlay';
-    modal.innerHTML = `
-      <div class="shp-modal-card">
-        <div class="shp-modal-header">
-          <div class="shp-modal-brand">
-            <span class="shp-modal-brand-badge">🟠 Shopee</span>
-            <span class="shp-modal-title">Disparar Oferta</span>
+    let groups = [];
+    let affiliateTag = '';
+    let pinnedGroup = '';
+    let isFavorited = false;
+
+    try {
+      const data = await chrome.storage.local.get([
+        'ml_whatsapp_groups',
+        'all_detected_whatsapp_groups',
+        'saved_whatsapp_groups',
+        'shopee_affiliate_tag',
+        'ml_affiliate_tag',
+        'ml_pinned_group',
+        'pinned_whatsapp_group',
+        'ml_favorite_offers'
+      ]);
+
+      groups = (Array.isArray(data.ml_whatsapp_groups) && data.ml_whatsapp_groups.length > 0)
+        ? data.ml_whatsapp_groups
+        : (Array.isArray(data.all_detected_whatsapp_groups) && data.all_detected_whatsapp_groups.length > 0
+          ? data.all_detected_whatsapp_groups
+          : (Array.isArray(data.saved_whatsapp_groups) && data.saved_whatsapp_groups.length > 0
+            ? data.saved_whatsapp_groups
+            : []));
+
+      pinnedGroup = data.ml_pinned_group || data.pinned_whatsapp_group || '';
+      affiliateTag = (data.shopee_affiliate_tag || '').trim();
+
+      const favList = Array.isArray(data.ml_favorite_offers) ? data.ml_favorite_offers : [];
+      const cleanUrl = (product.url || window.location.href).split('?')[0].split('#')[0];
+      isFavorited = favList.some(f => f.url && f.url.split('?')[0].split('#')[0] === cleanUrl);
+    } catch (e) {}
+
+    // Fallback RPC com o background caso o storage local ainda esteja vazio
+    if (groups.length === 0) {
+      try {
+        const bgRes = await chrome.runtime.sendMessage({ action: 'get_registered_groups' });
+        if (bgRes && Array.isArray(bgRes.groups) && bgRes.groups.length > 0) {
+          groups = bgRes.groups;
+          pinnedGroup = bgRes.pinned || pinnedGroup;
+        }
+      } catch (e) {}
+    }
+
+    const overlay = document.createElement('div');
+    overlay.id = 'shp-afiliado-modal-overlay';
+
+    let selectOptions = '';
+    if (groups.length === 0) {
+      selectOptions = '<option value="">Nenhum grupo cadastrado (abra a extensão para cadastrar)</option>';
+    } else {
+      selectOptions = groups.map(g => {
+        const isSelected = (pinnedGroup && g === pinnedGroup) || (!pinnedGroup && g === groups[0]);
+        const isPinnedBadge = (pinnedGroup && g === pinnedGroup) ? ' 📌 (Padrão)' : '';
+        return `<option value="${escapeHtml(g)}" ${isSelected ? 'selected' : ''}>${escapeHtml(g)}${isPinnedBadge}</option>`;
+      }).join('');
+    }
+
+    const commVal = product.rawPrice ? (product.rawPrice * 0.14) : 0;
+    const commFormatted = commVal > 0 ? `R$ ${commVal.toFixed(2).replace('.', ',')}` : (product.commissionPrice || 'R$ 0,00');
+    const isInitiallyPinned = pinnedGroup && groups.includes(pinnedGroup);
+
+    overlay.innerHTML = `
+      <div class="ml-afiliado-modal-card">
+        <div class="ml-modal-header">
+          <div class="ml-modal-title-row">
+            <span class="ml-modal-badge" style="background:#EE4D2D;color:#FFF;">⚡ AFILIADO SHOPEE</span>
+            <span class="ml-modal-title">Disparar Oferta</span>
           </div>
-          <button id="shpModalCloseBtn" class="shp-modal-close" title="Fechar">&times;</button>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button id="shpModalFavBtn" class="ml-modal-pin-btn ${isFavorited ? 'active' : ''}" style="margin-right:4px;" title="Salvar / Remover dos Favoritos" type="button">
+              <span id="shpModalFavIcon">${isFavorited ? '★' : '⭐'}</span> <span id="shpModalFavText">${isFavorited ? 'Favoritado' : 'Favoritar'}</span>
+            </button>
+            <button class="ml-modal-close" id="shpModalClose">&times;</button>
+          </div>
         </div>
 
-        <div class="shp-modal-body">
-          <div class="shp-modal-prod-summary">
-            <img src="${product.imageUrl || ''}" class="shp-modal-img" alt="Produto">
-            <div class="shp-modal-prod-info">
-              <div class="shp-modal-prod-title">${escapeHtml(product.title)}</div>
-              <div class="shp-modal-prod-price">${product.price} ${product.discount ? `<span class="shp-modal-badge">${product.discount}</span>` : ''}</div>
+        <div class="ml-modal-product">
+          <div style="position:relative;display:inline-block;flex-shrink:0;">
+            <img src="${product.imageUrl || ''}" class="ml-modal-img" alt="Produto" onerror="this.style.display='none'">
+          </div>
+          <div class="ml-modal-info">
+            <div class="ml-modal-p-title">${escapeHtml(product.title)}</div>
+            <div class="ml-modal-p-price">
+              ${product.originalPrice && product.originalPrice !== product.price ? `<span style="text-decoration:line-through;color:#94a3b8;font-size:12px;margin-right:6px;">${escapeHtml(product.originalPrice)}</span>` : ''}
+              ${escapeHtml(product.price)}
+              ${product.discount ? `<span class="ml-modal-p-disc">${escapeHtml(product.discount)}</span>` : ''}
+            </div>
+            <div class="ml-modal-p-comm-row">
+              <span class="ml-modal-comm-badge">💰 Ganho: <b>${commFormatted}</b> (14% • Shopee)</span>
+              <span class="ml-modal-cat-tag">Shopee Brasil</span>
             </div>
           </div>
-
-          <div class="shp-modal-field">
-            <label class="shp-modal-label">Grupo de Destino (WhatsApp):</label>
-            <select id="shpModalGroupSelect" class="shp-modal-select">
-              <option value="">Carregando grupos...</option>
-            </select>
-          </div>
-
-          <div class="shp-modal-field">
-            <label class="shp-modal-label">Modelo de Copy (IA):</label>
-            <select id="shpModalStyleSelect" class="shp-modal-select">
-              <option value="vantagens_gatilhos" selected>⭐ Vantagens & Gatilhos</option>
-              <option value="aleatorio">🎲 Aleatório (O sistema escolhe)</option>
-              <option value="curta_direta">⚡ Curta & Direta (Oferta Relâmpago)</option>
-              <option value="detalhada_persuasiva">📋 Detalhada & Completa</option>
-              <option value="urgencia_escassez">🔥 Urgência Máxima</option>
-            </select>
-          </div>
-
-          <div id="shpModalStatus" class="shp-modal-status"></div>
-
-          <button id="shpModalSendBtn" class="shp-modal-btn-send">
-            🚀 Disparar para o WhatsApp
-          </button>
         </div>
+
+        <div class="ml-modal-field">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label style="margin-bottom: 0;">Selecione o Grupo do WhatsApp:</label>
+            <button type="button" id="shpModalPinGroupBtn" class="ml-modal-pin-btn ${isInitiallyPinned ? 'active' : ''}" title="Fixar este grupo como padrão para não ter que selecionar toda hora">
+              📌 <span id="shpModalPinGroupText">${isInitiallyPinned ? 'Grupo Padrão Fixado' : 'Fixar como padrão'}</span>
+            </button>
+          </div>
+          <select id="shpModalGroupSelect" class="ml-modal-select" ${groups.length === 0 ? 'disabled' : ''}>
+            ${selectOptions}
+          </select>
+        </div>
+
+        <button id="shpModalSendBtn" class="ml-modal-btn-send" ${groups.length === 0 ? 'disabled' : ''}>
+          <span>🚀 Disparar Agora no WhatsApp Web</span>
+        </button>
+
+        <div id="shpModalStatus" class="ml-modal-status"></div>
       </div>
     `;
 
-    document.body.appendChild(modal);
+    document.body.appendChild(overlay);
 
-    document.getElementById('shpModalCloseBtn').addEventListener('click', () => modal.remove());
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.remove();
+    document.getElementById('shpModalClose').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.remove();
     });
 
-    const groupSelect = document.getElementById('shpModalGroupSelect');
     const sendBtn = document.getElementById('shpModalSendBtn');
     const statusDiv = document.getElementById('shpModalStatus');
-    const styleSelect = document.getElementById('shpModalStyleSelect');
+    const select = document.getElementById('shpModalGroupSelect');
+    const pinGroupBtn = document.getElementById('shpModalPinGroupBtn');
+    const pinGroupText = document.getElementById('shpModalPinGroupText');
 
-    try {
-      const stored = await chrome.storage.local.get([
-        'ml_whatsapp_groups',
-        'saved_whatsapp_groups',
-        'all_detected_whatsapp_groups',
-        'ml_selected_dispatch_groups',
-        'ml_pinned_group',
-        'pinned_whatsapp_group',
-        'ml_copy_style'
-      ]);
-      let groups = (Array.isArray(stored.ml_whatsapp_groups) && stored.ml_whatsapp_groups.length > 0)
-        ? stored.ml_whatsapp_groups
-        : (Array.isArray(stored.all_detected_whatsapp_groups) && stored.all_detected_whatsapp_groups.length > 0
-          ? stored.all_detected_whatsapp_groups
-          : (Array.isArray(stored.saved_whatsapp_groups) && stored.saved_whatsapp_groups.length > 0
-            ? stored.saved_whatsapp_groups
-            : []));
-      let pinned = stored.ml_pinned_group || stored.pinned_whatsapp_group || '';
-      if (stored.ml_copy_style) styleSelect.value = stored.ml_copy_style;
+    if (pinGroupBtn) {
+      pinGroupBtn.addEventListener('click', async () => {
+        const currentGroup = select.value;
+        if (!currentGroup) return;
 
-      if (groups.length === 0) {
-        try {
-          const bgRes = await chrome.runtime.sendMessage({ action: 'get_registered_groups' });
-          if (bgRes && Array.isArray(bgRes.groups) && bgRes.groups.length > 0) {
-            groups = bgRes.groups;
-            pinned = bgRes.pinned || pinned;
-          }
-        } catch (_) {}
-      }
+        if (pinnedGroup === currentGroup) {
+          pinnedGroup = '';
+          await chrome.storage.local.set({ ml_pinned_group: '' });
+          pinGroupBtn.classList.remove('active');
+          pinGroupText.textContent = 'Fixar como padrão';
+          statusDiv.textContent = 'Padrão removido.';
+          statusDiv.className = 'ml-modal-status info';
+        } else {
+          pinnedGroup = currentGroup;
+          await chrome.storage.local.set({ ml_pinned_group: currentGroup });
+          pinGroupBtn.classList.add('active');
+          pinGroupText.textContent = 'Grupo Padrão Fixado';
+          statusDiv.textContent = `📌 Grupo "${currentGroup}" fixado como padrão!`;
+          statusDiv.className = 'ml-modal-status success';
+        }
 
-      groupSelect.innerHTML = '';
-      if (groups.length === 0) {
-        groupSelect.innerHTML = '<option value="">Nenhum grupo cadastrado (abra a extensão para cadastrar)</option>';
-      } else {
-        groups.forEach(g => {
-          const opt = document.createElement('option');
-          opt.value = g;
-          opt.textContent = g + (g === pinned ? ' 📌 (Padrão)' : '');
-          if (g === pinned) opt.selected = true;
-          groupSelect.appendChild(opt);
+        Array.from(select.options).forEach(opt => {
+          const isPin = opt.value && opt.value === pinnedGroup;
+          opt.textContent = opt.value + (isPin ? ' 📌 (Padrão)' : '');
         });
-      }
-    } catch (e) {}
+      });
+
+      select.addEventListener('change', () => {
+        const isNowPinned = pinnedGroup && select.value === pinnedGroup;
+        if (isNowPinned) {
+          pinGroupBtn.classList.add('active');
+          pinGroupText.textContent = 'Grupo Padrão Fixado';
+        } else {
+          pinGroupBtn.classList.remove('active');
+          pinGroupText.textContent = 'Fixar como padrão';
+        }
+      });
+    }
+
+    const favBtn = document.getElementById('shpModalFavBtn');
+    const favIcon = document.getElementById('shpModalFavIcon');
+    const favText = document.getElementById('shpModalFavText');
+
+    if (favBtn) {
+      favBtn.addEventListener('click', async () => {
+        try {
+          const resp = await chrome.runtime.sendMessage({
+            action: 'toggle_favorite',
+            product: {
+              ...product,
+              platform: 'shopee',
+              commissionRate: 14
+            }
+          });
+          if (resp && resp.success) {
+            isFavorited = resp.isFavorite;
+            if (isFavorited) {
+              favBtn.classList.add('active');
+              if (favIcon) favIcon.textContent = '★';
+              if (favText) favText.textContent = 'Favoritado';
+              statusDiv.textContent = '⭐ Oferta adicionada aos Favoritos com sucesso!';
+              statusDiv.className = 'ml-modal-status success';
+            } else {
+              favBtn.classList.remove('active');
+              if (favIcon) favIcon.textContent = '⭐';
+              if (favText) favText.textContent = 'Favoritar';
+              statusDiv.textContent = 'Oferta removida dos seus Favoritos.';
+              statusDiv.className = 'ml-modal-status info';
+            }
+          }
+        } catch (e) {
+          console.warn('Erro ao favoritar oferta Shopee:', e);
+        }
+      });
+    }
 
     sendBtn.addEventListener('click', async () => {
-      const group = groupSelect.value;
-      if (!group) {
-        statusDiv.textContent = 'Selecione um grupo de WhatsApp.';
-        statusDiv.className = 'shp-modal-status error';
+      const selectedGroup = select.value;
+      if (!selectedGroup) {
+        statusDiv.textContent = 'Cadastre ao menos um grupo no ícone da extensão no topo!';
+        statusDiv.className = 'ml-modal-status error';
         return;
       }
 
       sendBtn.disabled = true;
+      sendBtn.textContent = 'Enviando oferta para o WhatsApp...';
       statusDiv.textContent = 'Gerando link e copy com IA...';
-      statusDiv.className = 'shp-modal-status info';
+      statusDiv.className = 'ml-modal-status info';
 
-      chrome.runtime.sendMessage({
-        action: 'send_offer',
-        productData: product,
-        groupName: group,
-        copyStyle: styleSelect.value
-      }, (resp) => {
-        sendBtn.disabled = false;
+      try {
+        const resp = await chrome.runtime.sendMessage({
+          action: 'send_offer',
+          productData: {
+            ...product,
+            platform: 'shopee',
+            commissionRate: 14
+          },
+          affiliateTag: affiliateTag,
+          groupName: selectedGroup,
+          platform: 'shopee'
+        });
+
         if (resp && resp.success) {
-          statusDiv.textContent = '✅ Disparado com sucesso!';
-          statusDiv.className = 'shp-modal-status success';
-          setTimeout(() => modal.remove(), 1400);
+          sendBtn.textContent = '✅ Disparado com Sucesso!';
+          sendBtn.style.backgroundColor = '#10B981';
+          statusDiv.textContent = `Oferta enviada para "${selectedGroup}"!`;
+          statusDiv.className = 'ml-modal-status success';
+          setTimeout(() => overlay.remove(), 2500);
         } else {
-          statusDiv.textContent = `❌ ${(resp && resp.error) || 'Erro no envio'}`;
-          statusDiv.className = 'shp-modal-status error';
+          throw new Error(resp?.error || 'Falha ao disparar');
         }
-      });
+      } catch (err) {
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Tentar Novamente';
+        statusDiv.textContent = `Erro: ${err.message}`;
+        statusDiv.className = 'ml-modal-status error';
+      }
     });
   }
 
@@ -911,7 +1056,7 @@
   }
 
   // =========================================================================
-  // ESTILOS IN-PAGE DA SHOPEE
+  // ESTILOS IN-PAGE DA SHOPEE (UNIFICADOS)
   // =========================================================================
 
   function injectShopeeStyles() {
@@ -921,29 +1066,54 @@
     style.textContent = `
       #shp-afiliado-floating-btn {
         position: fixed;
-        bottom: 24px;
+        bottom: 85px;
         right: 24px;
-        z-index: 999999;
-        display: flex;
-        align-items: center;
-        gap: 8px;
+        z-index: 2147483647;
         background: linear-gradient(135deg, #EE4D2D 0%, #D03B1B 100%);
         color: #FFFFFF;
-        border: 2px solid #FFFFFF;
-        padding: 10px 18px;
+        padding: 9px 18px;
         border-radius: 50px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        font-size: 14px;
-        font-weight: 700;
+        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25), 0 0 0 2px rgba(238, 77, 45, 0.4);
         cursor: pointer;
-        box-shadow: 0 4px 16px rgba(238, 77, 45, 0.45);
-        transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        font-weight: 700;
+        font-size: 13px;
+        border: none;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
       }
       #shp-afiliado-floating-btn:hover {
-        transform: translateY(-2px) scale(1.03);
-        box-shadow: 0 6px 22px rgba(238, 77, 45, 0.6);
+        transform: translateY(-2px) scale(1.02);
+        box-shadow: 0 6px 22px rgba(238, 77, 45, 0.5);
       }
-      .shp-float-icon { font-size: 16px; }
+      .ml-float-content {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .ml-float-wa-icon {
+        width: 22px;
+        height: 22px;
+        fill: #25D366;
+        flex-shrink: 0;
+      }
+      .ml-float-text-box {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.25;
+      }
+      .ml-float-main-text {
+        font-size: 13px;
+        font-weight: 800;
+        color: #FFFFFF;
+      }
+      .ml-float-comm-pill {
+        font-size: 11px;
+        font-weight: 700;
+        color: #FEF08A;
+      }
 
       .shp-card-actions-wrapper {
         position: absolute;
@@ -970,141 +1140,203 @@
 
       #shp-afiliado-modal-overlay {
         position: fixed;
-        inset: 0;
-        background: rgba(15, 23, 42, 0.65);
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(15, 23, 42, 0.6);
         backdrop-filter: blur(4px);
-        z-index: 9999999;
+        z-index: 2147483647;
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 16px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       }
-      .shp-modal-card {
+      .ml-afiliado-modal-card {
         background: #FFFFFF;
-        width: 100%;
+        width: 90%;
         max-width: 440px;
         border-radius: 14px;
-        box-shadow: 0 20px 40px rgba(0,0,0,0.25);
-        overflow: hidden;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        padding: 20px;
+        position: relative;
+        animation: mlModalFadeIn 0.2s ease-out;
       }
-      .shp-modal-header {
-        background: #EE4D2D;
-        color: #FFFFFF;
-        padding: 12px 16px;
+      @keyframes mlModalFadeIn {
+        from { opacity: 0; transform: scale(0.95); }
+        to { opacity: 1; transform: scale(1); }
+      }
+      .ml-modal-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
+        margin-bottom: 14px;
       }
-      .shp-modal-brand {
+      .ml-modal-title-row {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
       }
-      .shp-modal-brand-badge {
-        background: #FFFFFF;
-        color: #EE4D2D;
+      .ml-modal-badge {
+        background: #EE4D2D;
+        color: #FFFFFF;
+        font-size: 10px;
+        font-weight: 800;
         padding: 2px 7px;
         border-radius: 4px;
-        font-size: 11px;
-        font-weight: 800;
       }
-      .shp-modal-title {
+      .ml-modal-title {
+        font-size: 15px;
         font-weight: 700;
-        font-size: 14px;
+        color: #1D2640;
       }
-      .shp-modal-close {
-        background: transparent;
+      .ml-modal-close {
+        background: none;
         border: none;
-        color: rgba(255,255,255,0.8);
-        font-size: 22px;
-        cursor: pointer;
+        font-size: 24px;
         line-height: 1;
+        cursor: pointer;
+        color: #64748B;
       }
-      .shp-modal-close:hover { color: #FFF; }
-      .shp-modal-body { padding: 16px; }
-      .shp-modal-prod-summary {
+      .ml-modal-pin-btn {
+        background: #F1F5F9;
+        border: 1px solid #CBD5E1;
+        color: #475569;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .ml-modal-pin-btn:hover { background: #E2E8F0; }
+      .ml-modal-pin-btn.active {
+        background: #FEF3C7;
+        border-color: #F59E0B;
+        color: #B45309;
+      }
+      .ml-modal-product {
         display: flex;
         gap: 12px;
-        align-items: center;
         background: #F8FAFC;
-        padding: 10px;
+        padding: 12px;
         border-radius: 8px;
-        margin-bottom: 14px;
         border: 1px solid #E2E8F0;
+        margin-bottom: 14px;
       }
-      .shp-modal-img {
-        width: 52px;
-        height: 52px;
+      .ml-modal-img {
+        width: 54px;
+        height: 54px;
         object-fit: contain;
         border-radius: 6px;
         background: #FFF;
       }
-      .shp-modal-prod-info {
+      .ml-modal-info {
         flex: 1;
         min-width: 0;
       }
-      .shp-modal-prod-title {
+      .ml-modal-p-title {
         font-size: 12px;
         font-weight: 600;
         color: #1E293B;
-        white-space: nowrap;
+        line-height: 1.3;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
         overflow: hidden;
-        text-overflow: ellipsis;
       }
-      .shp-modal-prod-price {
+      .ml-modal-p-price {
         font-size: 14px;
         font-weight: 800;
-        color: #059669;
-        margin-top: 3px;
+        color: #0F172A;
+        margin-top: 4px;
       }
-      .shp-modal-badge {
-        font-size: 10px;
-        background: #EF4444;
-        color: #FFF;
+      .ml-modal-p-disc {
+        color: #00A650;
+        font-size: 11px;
+        font-weight: 800;
+        background: #DCFCE7;
         padding: 1px 5px;
         border-radius: 4px;
         margin-left: 6px;
       }
-      .shp-modal-field { margin-bottom: 12px; }
-      .shp-modal-label {
-        display: block;
-        font-size: 11px;
-        font-weight: 700;
-        color: #475569;
-        margin-bottom: 4px;
+      .ml-modal-p-comm-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 5px;
+        flex-wrap: wrap;
       }
-      .shp-modal-select {
+      .ml-modal-comm-badge {
+        font-size: 11px;
+        color: #047857;
+        background: #D1FAE5;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-weight: 700;
+      }
+      .ml-modal-cat-tag {
+        font-size: 10px;
+        color: #64748B;
+        background: #E2E8F0;
+        padding: 2px 5px;
+        border-radius: 4px;
+      }
+      .ml-modal-field {
+        margin-bottom: 14px;
+      }
+      .ml-modal-field label {
+        display: block;
+        font-size: 12px;
+        font-weight: 700;
+        color: #334155;
+        margin-bottom: 6px;
+      }
+      .ml-modal-select {
         width: 100%;
-        padding: 8px 10px;
+        padding: 9px 12px;
         border: 1px solid #CBD5E1;
-        border-radius: 6px;
+        border-radius: 8px;
         font-size: 13px;
         color: #1E293B;
+        background: #FFF;
+        outline: none;
       }
-      .shp-modal-btn-send {
+      .ml-modal-select:focus {
+        border-color: #EE4D2D;
+        box-shadow: 0 0 0 2px rgba(238,77,45,0.15);
+      }
+      .ml-modal-btn-send {
         width: 100%;
         background: #25D366;
         color: #FFF;
         border: none;
-        padding: 11px;
+        padding: 12px;
         border-radius: 8px;
         font-size: 14px;
-        font-weight: 700;
+        font-weight: 800;
         cursor: pointer;
-        transition: background 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: background 0.15s ease;
+      }
+      .ml-modal-btn-send:hover { background: #20BD5A; }
+      .ml-modal-btn-send:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .ml-modal-status {
         margin-top: 10px;
-      }
-      .shp-modal-btn-send:hover { background: #20BD5A; }
-      .shp-modal-status {
-        margin-top: 8px;
         font-size: 12px;
-        text-align: center;
         font-weight: 600;
+        text-align: center;
+        min-height: 18px;
       }
-      .shp-modal-status.info { color: #2563EB; }
-      .shp-modal-status.success { color: #059669; }
-      .shp-modal-status.error { color: #DC2626; }
+      .ml-modal-status.info { color: #2563EB; }
+      .ml-modal-status.success { color: #059669; }
+      .ml-modal-status.error { color: #DC2626; }
     `;
     document.head.appendChild(style);
   }
@@ -1116,3 +1348,4 @@
   }
 
 })();
+

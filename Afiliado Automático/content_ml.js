@@ -1693,7 +1693,7 @@
         position: fixed;
         bottom: 24px;
         right: 24px;
-        z-index: 999999;
+        z-index: 2147483647;
         background: linear-gradient(135deg, #FFE600 0%, #FFD000 100%);
         color: #1D2640;
         padding: 9px 18px;
@@ -1746,7 +1746,7 @@
         bottom: 0;
         background: rgba(15, 23, 42, 0.6);
         backdrop-filter: blur(4px);
-        z-index: 1000000;
+        z-index: 2147483647;
         display: flex;
         align-items: center;
         justify-content: center;
