@@ -18,8 +18,7 @@ import {
   Lock,
   Plus,
   Trash2,
-  ArrowRight,
-  Flame
+  ArrowRight
 } from 'lucide-react'
 import { supabase } from '../supabase'
 
@@ -80,7 +79,7 @@ const AVATAR_CATEGORIES = [
   }
 ]
 
-export default function SettingsView({ profile, onProfileUpdate, isSuperAdmin, user, darkMode, setDarkMode, showRadar = true, setShowRadar }) {
+export default function SettingsView({ profile, onProfileUpdate, isSuperAdmin, user, darkMode, setDarkMode }) {
   // Dados de Perfil
   const [fullName, setFullName] = useState(
     profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || ''
@@ -96,9 +95,30 @@ export default function SettingsView({ profile, onProfileUpdate, isSuperAdmin, u
   const [shpTag, setShpTag] = useState(profile?.shopee_affiliate_tag || '')
   const [groqKey, setGroqKey] = useState(profile?.groq_api_key || '')
 
+  const isStarterOrTrial = !isSuperAdmin && (profile?.plan === 'starter' || profile?.plan === 'free_trial' || !profile?.plan)
+
+  const userId = profile?.id || user?.id
+  let initialLocalLock = null
+  try {
+    const raw = localStorage.getItem('starter_lock_' + userId)
+    if (raw) initialLocalLock = JSON.parse(raw)
+  } catch (e) {}
+
+  const initialLockedUntil = profile?.starter_platform_locked_until ||
+    profile?.platform_locked_until ||
+    user?.user_metadata?.starter_platform_locked_until ||
+    user?.user_metadata?.platform_locked_until ||
+    initialLocalLock?.platformLockedUntil ||
+    null
+
+  const initialPlatform = profile?.allowed_platform ||
+    user?.user_metadata?.allowed_platform ||
+    initialLocalLock?.allowedPlatform ||
+    'mercadolivre'
+
   // Plataforma Fixada & Grupos de WhatsApp
-  const [allowedPlatform, setAllowedPlatform] = useState(profile?.allowed_platform || 'mercadolivre')
-  const [platformLockedUntil, setPlatformLockedUntil] = useState(profile?.platform_locked_until || null)
+  const [allowedPlatform, setAllowedPlatform] = useState(initialPlatform)
+  const [platformLockedUntil, setPlatformLockedUntil] = useState(initialLockedUntil)
   const [whatsappGroups, setWhatsappGroups] = useState(
     Array.isArray(profile?.ml_whatsapp_groups) ? profile.ml_whatsapp_groups : []
   )
@@ -112,30 +132,48 @@ export default function SettingsView({ profile, onProfileUpdate, isSuperAdmin, u
   const [statusMessage, setStatusMessage] = useState(null)
   const fileInputRef = useRef(null)
 
-  const isStarterOrTrial = !isSuperAdmin && (profile?.plan === 'starter' || profile?.plan === 'free_trial' || !profile?.plan)
   const isPlatformLocked = isStarterOrTrial && platformLockedUntil && new Date(platformLockedUntil) > new Date()
 
   // Limite estrito de grupos por plano
   const maxGroupsAllowed = isSuperAdmin ? 9999 : (profile?.plan === 'ultra' ? 10 : (profile?.plan === 'pro' ? 5 : 1))
 
   useEffect(() => {
-    if (profile) {
-      setFullName(profile.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || '')
-      setAvatarUrl(profile.avatar_url || user?.user_metadata?.avatar_url || '')
-      setMlTag(profile.ml_affiliate_tag || '')
-      setAmzTag(profile.amazon_affiliate_tag || '')
-      setShpTag(profile.shopee_affiliate_tag || '')
-      setGroqKey(profile.groq_api_key || '')
-      setAllowedPlatform(profile.allowed_platform || (isStarterOrTrial ? 'mercadolivre' : 'all'))
-      setPlatformLockedUntil(profile.platform_locked_until || null)
-      if (Array.isArray(profile.ml_whatsapp_groups)) {
+    if (profile || user) {
+      const uId = profile?.id || user?.id
+      let lockFromStorage = null
+      try {
+        const raw = localStorage.getItem('starter_lock_' + uId)
+        if (raw) lockFromStorage = JSON.parse(raw)
+      } catch (e) {}
+
+      const lockedVal = profile?.starter_platform_locked_until ||
+        profile?.platform_locked_until ||
+        user?.user_metadata?.starter_platform_locked_until ||
+        user?.user_metadata?.platform_locked_until ||
+        lockFromStorage?.platformLockedUntil ||
+        null
+
+      const platVal = profile?.allowed_platform ||
+        user?.user_metadata?.allowed_platform ||
+        lockFromStorage?.allowedPlatform ||
+        (isStarterOrTrial ? 'mercadolivre' : 'all')
+
+      setFullName(profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || '')
+      setAvatarUrl(profile?.avatar_url || user?.user_metadata?.avatar_url || '')
+      setMlTag(profile?.ml_affiliate_tag || '')
+      setAmzTag(profile?.amazon_affiliate_tag || '')
+      setShpTag(profile?.shopee_affiliate_tag || '')
+      setGroqKey(profile?.groq_api_key || '')
+      setAllowedPlatform(platVal)
+      setPlatformLockedUntil(lockedVal)
+      if (Array.isArray(profile?.ml_whatsapp_groups)) {
         setWhatsappGroups(profile.ml_whatsapp_groups)
       }
-      if (Array.isArray(profile.all_detected_whatsapp_groups)) {
+      if (Array.isArray(profile?.all_detected_whatsapp_groups)) {
         setDetectedWhatsAppGroups(profile.all_detected_whatsapp_groups)
       }
     }
-  }, [profile, user])
+  }, [profile, user, isStarterOrTrial])
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0]
@@ -154,33 +192,84 @@ export default function SettingsView({ profile, onProfileUpdate, isSuperAdmin, u
     reader.readAsDataURL(file)
   }
 
-  // Trava a plataforma para o ciclo mensal no plano Starter
+  // Trava a plataforma para o ciclo mensal no plano Starter com persistência multi-camadas
   const handleLockPlatform = async () => {
     try {
       const lockDate = new Date()
       lockDate.setDate(lockDate.getDate() + 30)
-      const lockIso = lockDate.toISOString()
+      let lockIso = lockDate.toISOString()
 
       const { data: authData } = await supabase.auth.getUser()
-      const currentUser = authData?.user
+      const currentUser = authData?.user || user
       if (!currentUser) throw new Error('Usuário não autenticado')
 
-      const updates = {
-        allowed_platform: allowedPlatform,
-        platform_locked_until: lockIso
+      const cleanPlatform = (allowedPlatform || 'mercadolivre').toLowerCase()
+
+      // 1. Executa a RPC segura 'set_starter_platform' no Supabase
+      try {
+        const { data: rpcData, error: rpcErr } = await supabase.rpc('set_starter_platform', {
+          p_platform: cleanPlatform
+        })
+        if (!rpcErr && rpcData?.success && rpcData.locked_until) {
+          lockIso = rpcData.locked_until
+        } else if (rpcErr) {
+          console.warn('[Dashboard] Aviso RPC set_starter_platform:', rpcErr)
+        }
+      } catch (e) {
+        console.warn('[Dashboard] Exceção RPC set_starter_platform:', e)
       }
 
-      await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', currentUser.id)
+      // 2. Atualiza a tabela public.profiles diretamente com ambos os nomes para garantir compatibilidade
+      try {
+        const updatesProfiles = {
+          allowed_platform: cleanPlatform,
+          starter_platform_locked_until: lockIso
+        }
+        const { error: profErr } = await supabase
+          .from('profiles')
+          .update(updatesProfiles)
+          .eq('id', currentUser.id)
 
+        if (profErr) {
+          console.warn('[Dashboard] Aviso update profiles:', profErr)
+        }
+      } catch (e) {
+        console.warn('[Dashboard] Exceção update profiles:', e)
+      }
+
+      // 3. Atualiza Auth User Metadata (persiste mesmo se profiles estiver em sincronização)
+      try {
+        await supabase.auth.updateUser({
+          data: {
+            allowed_platform: cleanPlatform,
+            starter_platform_locked_until: lockIso,
+            platform_locked_until: lockIso
+          }
+        })
+      } catch (e) {}
+
+      // 4. Salva no localStorage local para carregamento instantâneo offline/refresh
+      try {
+        localStorage.setItem('starter_lock_' + currentUser.id, JSON.stringify({
+          allowedPlatform: cleanPlatform,
+          platformLockedUntil: lockIso
+        }))
+      } catch (e) {}
+
+      setAllowedPlatform(cleanPlatform)
       setPlatformLockedUntil(lockIso)
-      if (onProfileUpdate) onProfileUpdate(updates)
+
+      if (onProfileUpdate) {
+        onProfileUpdate({
+          allowed_platform: cleanPlatform,
+          starter_platform_locked_until: lockIso,
+          platform_locked_until: lockIso
+        })
+      }
 
       setStatusMessage({
         type: 'success',
-        text: `Plataforma "${allowedPlatform.toUpperCase()}" fixada com sucesso para este ciclo de 30 dias!`
+        text: `Plataforma "${cleanPlatform.toUpperCase()}" fixada e bloqueada com sucesso por 30 dias!`
       })
     } catch (err) {
       setStatusMessage({ type: 'error', text: 'Erro ao bloquear plataforma: ' + err.message })
@@ -563,48 +652,6 @@ export default function SettingsView({ profile, onProfileUpdate, isSuperAdmin, u
           </div>
         </div>
 
-        {/* SEÇÃO: MÓDULOS & RADAR DE OFERTAS */}
-        <div className="rounded-[28px] border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-[#121724] p-6 shadow-xs space-y-4 transition-colors">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-            <div className="flex items-center gap-2">
-              <Flame className="h-4 w-4 text-orange-500" />
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white">Módulos da Plataforma</h2>
-            </div>
-            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${showRadar ? 'bg-orange-100 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
-              {showRadar ? 'Radar Ativo' : 'Radar Oculto'}
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 font-bold text-xs text-slate-800 dark:text-slate-200">
-                <span>Exibir Radar de Ofertas no Menu Lateral</span>
-              </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Exibe a aba do Radar de Ofertas no menu lateral da plataforma. Você pode desativar para trabalhar exclusivamente com ofertas capturadas pela extensão nos sites oficiais.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const next = !showRadar
-                if (setShowRadar) setShowRadar(next)
-                try {
-                  localStorage.setItem('hide_radar_tab', next ? 'false' : 'true')
-                } catch (e) {}
-              }}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                showRadar ? 'bg-orange-500' : 'bg-slate-300 dark:bg-slate-700'
-              }`}
-            >
-              <span
-                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                  showRadar ? 'translate-x-5' : 'translate-x-0'
-                }`}
-              />
-            </button>
-          </div>
-        </div>
 
         {/* SEÇÃO 2: PLATAFORMA DE OPERAÇÃO & BLOQUEIO DO STARTER */}
         <div className="rounded-[28px] border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-[#121724] p-6 shadow-xs space-y-4 transition-colors">

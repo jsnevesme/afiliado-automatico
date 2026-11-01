@@ -1,12 +1,11 @@
 {
-  "version": "2.3.3",
-  "buildTimestamp": 1730431200000,
-  "updatedAt": "2026-10-31T23:15:00.000Z",
+  "version": "2.3.4",
+  "buildTimestamp": 1730432400000,
+  "updatedAt": "2026-10-31T23:35:00.000Z",
   "features": [
-    "Correção definitiva na extração do título de produtos na Amazon (eliminação de Histórico de conversas)",
-    "Detecção infalível de páginas de produto individual (PDP) no Mercado Livre com suporte a URLs /up/ e /item/",
-    "Eliminação completa de cards de variação (cor, tamanho, perguntas) ao abrir a extensão em páginas de produto",
-    "Radar com produtos 100% reais, imagens oficiais em CDNs de e-commerce e links válidos",
-    "Opção de ocultar ou desativar o Radar de Ofertas no menu lateral da plataforma a qualquer momento"
+    "Fix permanente e persistência multi-camadas no bloqueio de 30 dias de plataforma do plano Starter",
+    "Bloqueio estrito de busca e disparo na extensão e in-page para usuários Starter sem travamento prévio de plataforma",
+    "Remoção completa e definitiva do Radar de Ofertas da plataforma",
+    "Eliminação definitiva do erro 'Histórico de conversas' na extração de títulos de produtos na Amazon"
   ]
 }

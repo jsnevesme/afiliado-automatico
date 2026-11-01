@@ -33,22 +33,8 @@ async function reinjectContentScriptsInOpenTabs() {
     for (const tab of tabs) {
       if (!tab.id || !tab.url) continue;
       try {
-        if (tab.url.includes('mercadolivre.com.br')) {
-          await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            files: ['commission.js', 'content_ml.js']
-          });
-        } else if (tab.url.includes('amazon.com.br')) {
-          await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            files: ['content_amazon.js']
-          });
-        } else if (tab.url.includes('shopee.com.br')) {
-          await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            files: ['content_shopee.js']
-          });
-        }
+        // Recarrega abas oficiais para expurgar scripts antigos de memória e garantir DOM limpo
+        chrome.tabs.reload(tab.id);
       } catch (_) {}
     }
   } catch (_) {}

@@ -1122,6 +1122,64 @@ document.addEventListener('DOMContentLoaded', () => {
     updateSelectionCounters();
   }
 
+  function renderStarterLockRequiredNotice() {
+    if (resultsCountBadge) {
+      resultsCountBadge.textContent = '🔒 Bloqueado';
+      resultsCountBadge.style.display = 'inline-block';
+    }
+    if (resultsContainer) {
+      resultsContainer.innerHTML = `
+        <div class="empty-state" style="padding: 24px 16px; background: #FFFBEB; border: 1px solid #FCD34D; border-radius: 16px; text-align: center; margin: 12px 8px;">
+          <div style="font-size: 32px; margin-bottom: 8px;">🔒</div>
+          <h3 style="color: #92400E; font-size: 14px; font-weight: 800; margin-bottom: 6px;">Seleção de Plataforma Obrigatória</h3>
+          <p style="color: #B45309; font-size: 11px; line-height: 1.4; margin-bottom: 14px;">
+            No <strong>Plano Starter</strong>, você precisa primeiro <strong>escolher e travar sua plataforma de disparo por 30 dias</strong> no Painel de Configurações antes de buscar ou disparar ofertas.
+          </p>
+          <button id="btnOpenConfigToLock" type="button" style="background: #D97706; color: white; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+            ⚙️ Escolher & Travar no Painel
+          </button>
+        </div>
+      `;
+      const btn = document.getElementById('btnOpenConfigToLock');
+      if (btn) {
+        btn.addEventListener('click', () => {
+          chrome.tabs.create({ url: 'http://localhost:5173#dashboard' });
+        });
+      }
+    }
+  }
+
+  function renderStarterDifferentStoreNotice(allowedPlatform, currentStore) {
+    const names = { mercadolivre: 'Mercado Livre', shopee: 'Shopee', amazon: 'Amazon' };
+    const curAllowed = names[allowedPlatform] || (allowedPlatform ? allowedPlatform.toUpperCase() : 'Mercado Livre');
+    const storeNow = names[currentStore] || (currentStore ? currentStore.toUpperCase() : 'Outra loja');
+
+    if (resultsCountBadge) {
+      resultsCountBadge.textContent = '🔒 Restrito';
+      resultsCountBadge.style.display = 'inline-block';
+    }
+    if (resultsContainer) {
+      resultsContainer.innerHTML = `
+        <div class="empty-state" style="padding: 24px 16px; background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 16px; text-align: center; margin: 12px 8px;">
+          <div style="font-size: 32px; margin-bottom: 8px;">🔒</div>
+          <h3 style="color: #1E40AF; font-size: 14px; font-weight: 800; margin-bottom: 6px;">Plataforma Fixada: ${curAllowed}</h3>
+          <p style="color: #1D4ED8; font-size: 11px; line-height: 1.4; margin-bottom: 14px;">
+            Sua conta Starter está travada exclusivamente para <strong>${curAllowed}</strong> durante este ciclo de 30 dias. Para buscar e disparar ofertas na <strong>${storeNow}</strong>, faça upgrade para o Plano Pro.
+          </p>
+          <button id="btnUpgradeForStore" type="button" style="background: #2563EB; color: white; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+            🚀 Liberar Todas as Lojas (Plano Pro)
+          </button>
+        </div>
+      `;
+      const btn = document.getElementById('btnUpgradeForStore');
+      if (btn) {
+        btn.addEventListener('click', () => {
+          showUpgradeModal('Desbloqueie Todas as Plataformas', 'Faça upgrade para o Plano Pro para buscar e disparar ofertas simultaneamente no Mercado Livre, Shopee e Amazon:');
+        });
+      }
+    }
+  }
+
   // =========================================================================
   // RENDERIZAÇÃO DOS PRODUTOS COM CHECKBOXES E BADGES PREMIUM
   // =========================================================================
@@ -1394,15 +1452,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (typeof supabase !== 'undefined') {
       const status = supabase.getPlanStatus();
-      if (status.plan === 'starter' && !status.isSuperAdmin && status.allowedPlatform && status.allowedPlatform !== 'all') {
-        const hasOtherPlatform = selectedProducts.some(p => {
-          const prodPlat = (p.platform || (p.url?.includes('amazon') ? 'amazon' : (p.url?.includes('shopee') ? 'shopee' : 'mercadolivre'))).toLowerCase();
-          return prodPlat !== status.allowedPlatform.toLowerCase();
-        });
-        if (hasOtherPlatform) {
-          showToast(`O Plano Starter permite disparar apenas ofertas de ${status.allowedPlatform.toUpperCase()}. Faça upgrade para o Pro ou Ultra!`, '⚠️');
-          showUpgradeModal('Plataforma Bloqueada no Plano Starter', `Seu plano atual permite apenas ofertas da plataforma ${status.allowedPlatform.toUpperCase()}. Faça upgrade para o Pro ou Ultra para usar todas simultaneamente!`);
+      const isStarter = !status.isSuperAdmin && (status.plan === 'starter' || status.plan === 'free_trial' || !status.plan);
+      if (isStarter) {
+        if (!status.isPlatformLocked) {
+          showToast('Você precisa primeiro escolher e travar sua plataforma por 30 dias antes de disparar!', '🔒');
+          alert('🔒 Seleção de Plataforma Pendente (Plano Starter)\n\nVocê precisa primeiro escolher e travar sua plataforma de disparo por 30 dias no Painel de Configurações antes de disparar ofertas.');
           return;
+        }
+        if (status.allowedPlatform && status.allowedPlatform !== 'all') {
+          const hasOtherPlatform = selectedProducts.some(p => {
+            const prodPlat = (p.platform || (p.url?.includes('amazon') ? 'amazon' : (p.url?.includes('shopee') ? 'shopee' : 'mercadolivre'))).toLowerCase();
+            return prodPlat !== status.allowedPlatform.toLowerCase();
+          });
+          if (hasOtherPlatform) {
+            showToast(`O Plano Starter permite disparar apenas ofertas de ${status.allowedPlatform.toUpperCase()}. Faça upgrade para o Pro ou Ultra!`, '⚠️');
+            showUpgradeModal('Plataforma Bloqueada no Plano Starter', `Seu plano atual permite apenas ofertas da plataforma ${status.allowedPlatform.toUpperCase()}. Faça upgrade para o Pro ou Ultra para usar todas simultaneamente!`);
+            return;
+          }
         }
       }
     }
@@ -1901,6 +1967,23 @@ document.addEventListener('DOMContentLoaded', () => {
       const isShp = (url.includes('shopee.com.br') || url.includes('s.shopee.com.br')) && !url.includes('careers.') && !url.includes('help.');
 
       if (!isML && !isAmz && !isShp) return;
+
+      // Validação estrita: Usuário Starter ou Trial precisa primeiro travar a plataforma antes de buscar ou visualizar ofertas
+      if (typeof supabase !== 'undefined') {
+        const planStatus = supabase.getPlanStatus();
+        const isStarterOrTrial = !planStatus.isSuperAdmin && (planStatus.plan === 'starter' || planStatus.plan === 'free_trial' || !planStatus.plan);
+        if (isStarterOrTrial) {
+          if (!planStatus.isPlatformLocked) {
+            renderStarterLockRequiredNotice();
+            return;
+          }
+          const currentStore = isML ? 'mercadolivre' : (isAmz ? 'amazon' : (isShp ? 'shopee' : ''));
+          if (planStatus.allowedPlatform && planStatus.allowedPlatform !== 'all' && currentStore && currentStore !== planStatus.allowedPlatform.toLowerCase()) {
+            renderStarterDifferentStoreNotice(planStatus.allowedPlatform, currentStore);
+            return;
+          }
+        }
+      }
 
       // Garante que os content scripts corretos estão injetados na aba ativa
       try {
@@ -2643,25 +2726,21 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       function isGarbageTitle(str) {
         if (!str || typeof str !== 'string') return true;
-        const s = str.trim().toLowerCase();
+        const s = str.trim();
         if (s.length < 3) return true;
-        const junk = ['histórico de conversas', 'historico de conversas', 'histórico de navegação', 'historico de navegacao', 'carrinho', 'sua conta', 'compre novamente', 'resultados para', 'mais vendidos'];
-        return junk.some(j => s.includes(j));
+        const norm = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        const junk = ['historico de conversas', 'historico', 'conversa', 'conversas', 'rufus', 'chat', 'historico de navegacao', 'carrinho', 'sua conta', 'compre novamente', 'resultados para', 'mais vendidos'];
+        return junk.some(j => norm.includes(j));
       }
 
-      // 2. Título (Prioridade para os IDs canônicos da Amazon e eliminação de histórico de conversas)
+      // 2. Título (Prioridade absoluta para o ID canônico #productTitle e eliminação de conversas/gavetas)
       let title = '';
       const titleCandidates = [
         '#productTitle',
+        'span#productTitle',
         '#title #productTitle',
         '#centerCol #productTitle',
-        '#ppd #productTitle',
-        '#titleSection h1',
-        '#title_feature_div #productTitle',
-        '#title_feature_div h1',
-        '#centerCol h1#title',
-        '#centerCol h1',
-        'h1#title'
+        '#ppd #productTitle'
       ];
       for (const sel of titleCandidates) {
         const el = document.querySelector(sel);
@@ -3785,6 +3864,17 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    // Validação estrita: Usuário Starter ou Trial precisa travar a plataforma antes de buscar
+    if (typeof supabase !== 'undefined') {
+      const planStatus = supabase.getPlanStatus();
+      const isStarterOrTrial = !planStatus.isSuperAdmin && (planStatus.plan === 'starter' || planStatus.plan === 'free_trial' || !planStatus.plan);
+      if (isStarterOrTrial && !planStatus.isPlatformLocked) {
+        renderStarterLockRequiredNotice();
+        showToast('Você precisa primeiro escolher e travar sua plataforma por 30 dias antes de buscar ofertas!', '🔒');
+        return;
+      }
+    }
+
     // Se o usuário digitou ou colou a URL de afiliados ou o termo 'afiliados'
     if (query.includes('mercadolivre.com.br/afiliados') || query.toLowerCase() === 'afiliados') {
       try {
@@ -3909,13 +3999,21 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // Validação de plataforma para Plano Starter (apenas 1 permitida)
-      if (status.plan === 'starter' && status.allowedPlatform && status.allowedPlatform !== 'all') {
-        const prodPlat = (product.platform || (product.url?.includes('amazon') ? 'amazon' : (product.url?.includes('shopee') ? 'shopee' : 'mercadolivre'))).toLowerCase();
-        if (prodPlat !== status.allowedPlatform.toLowerCase()) {
-          showToast(`O seu Plano Starter dá acesso apenas à plataforma ${status.allowedPlatform.toUpperCase()}. Faça upgrade para o Pro ou Ultra!`, '⚠️');
-          showUpgradeModal('Plataforma Bloqueada no Plano Starter', `Seu plano atual permite apenas ofertas da plataforma ${status.allowedPlatform.toUpperCase()}. Faça upgrade para o Pro ou Ultra para usar todas simultaneamente!`);
+      // Validação de plataforma para Plano Starter: BLOQUEIO OBRIGATÓRIO PRÉVIO
+      const isStarter = !status.isSuperAdmin && (status.plan === 'starter' || status.plan === 'free_trial' || !status.plan);
+      if (isStarter) {
+        if (!status.isPlatformLocked) {
+          showToast('Você precisa primeiro escolher e travar sua plataforma por 30 dias antes de disparar!', '🔒');
+          alert('🔒 Seleção de Plataforma Pendente (Plano Starter)\n\nVocê precisa primeiro escolher e travar sua plataforma de disparo por 30 dias no Painel de Configurações antes de disparar ofertas.');
           return;
+        }
+        if (status.allowedPlatform && status.allowedPlatform !== 'all') {
+          const prodPlat = (product.platform || (product.url?.includes('amazon') ? 'amazon' : (product.url?.includes('shopee') ? 'shopee' : 'mercadolivre'))).toLowerCase();
+          if (prodPlat !== status.allowedPlatform.toLowerCase()) {
+            showToast(`O seu Plano Starter dá acesso apenas à plataforma ${status.allowedPlatform.toUpperCase()}. Faça upgrade para o Pro ou Ultra!`, '⚠️');
+            showUpgradeModal('Plataforma Bloqueada no Plano Starter', `Seu plano atual permite apenas ofertas da plataforma ${status.allowedPlatform.toUpperCase()}. Faça upgrade para o Pro ou Ultra para usar todas simultaneamente!`);
+            return;
+          }
         }
       }
     }
@@ -4932,15 +5030,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (typeof supabase !== 'undefined') {
       const status = supabase.getPlanStatus();
-      if (status.plan === 'starter' && !status.isSuperAdmin && status.allowedPlatform && status.allowedPlatform !== 'all') {
-        const hasOtherPlatform = selectedItems.some(f => {
-          const prodPlat = (f.platform || (f.url?.includes('amazon') ? 'amazon' : (f.url?.includes('shopee') ? 'shopee' : 'mercadolivre'))).toLowerCase();
-          return prodPlat !== status.allowedPlatform.toLowerCase();
-        });
-        if (hasOtherPlatform) {
-          showToast(`O Plano Starter permite disparar apenas ofertas de ${status.allowedPlatform.toUpperCase()}. Faça upgrade para o Pro ou Ultra!`, '⚠️');
-          showUpgradeModal('Plataforma Bloqueada no Plano Starter', `Seu plano atual permite apenas ofertas da plataforma ${status.allowedPlatform.toUpperCase()}. Faça upgrade para o Pro ou Ultra para usar todas simultaneamente!`);
+      const isStarter = !status.isSuperAdmin && (status.plan === 'starter' || status.plan === 'free_trial' || !status.plan);
+      if (isStarter) {
+        if (!status.isPlatformLocked) {
+          showToast('Você precisa primeiro escolher e travar sua plataforma por 30 dias antes de disparar!', '🔒');
+          alert('🔒 Seleção de Plataforma Pendente (Plano Starter)\n\nVocê precisa primeiro escolher e travar sua plataforma de disparo por 30 dias no Painel de Configurações antes de disparar ofertas.');
           return;
+        }
+        if (status.allowedPlatform && status.allowedPlatform !== 'all') {
+          const hasOtherPlatform = selectedItems.some(f => {
+            const prodPlat = (f.platform || (f.url?.includes('amazon') ? 'amazon' : (f.url?.includes('shopee') ? 'shopee' : 'mercadolivre'))).toLowerCase();
+            return prodPlat !== status.allowedPlatform.toLowerCase();
+          });
+          if (hasOtherPlatform) {
+            showToast(`O Plano Starter permite disparar apenas ofertas de ${status.allowedPlatform.toUpperCase()}. Faça upgrade para o Pro ou Ultra!`, '⚠️');
+            showUpgradeModal('Plataforma Bloqueada no Plano Starter', `Seu plano atual permite apenas ofertas da plataforma ${status.allowedPlatform.toUpperCase()}. Faça upgrade para o Pro ou Ultra para usar todas simultaneamente!`);
+            return;
+          }
         }
       }
     }

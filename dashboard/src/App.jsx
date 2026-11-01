@@ -4,7 +4,6 @@ import TopHeader from './components/TopHeader'
 import Sidebar from './components/Sidebar'
 import AnalyticsView from './components/AnalyticsView'
 import FavoritesView from './components/FavoritesView'
-import RadarView from './components/RadarView'
 import DailySalesView from './components/DailySalesView'
 import AiConsultantView from './components/AiConsultantView'
 import DispatchesHistoryView from './components/DispatchesHistoryView'
@@ -28,13 +27,6 @@ export default function App() {
   const [folders, setFolders] = useState([])
   const [prefilledProduct, setPrefilledProduct] = useState(null)
   const [currentTab, setTab] = useState('analytics')
-  const [showRadar, setShowRadar] = useState(() => {
-    try {
-      return localStorage.getItem('hide_radar_tab') !== 'true'
-    } catch (e) {
-      return true
-    }
-  })
   const [loading, setLoading] = useState(true)
   const [profileModalOpen, setProfileModalOpen] = useState(false)
   const [authModalOpen, setAuthModalOpen] = useState(false)
@@ -221,13 +213,34 @@ export default function App() {
         : (prof?.ml_affiliate_tag === 'jonathansneves' ? '' : (prof?.ml_affiliate_tag || ''))
       const sanitizedGroqKey = isSuperAdminEmail ? (prof?.groq_api_key || '') : (prof?.groq_api_key || '')
 
+      let starterLockData = null
+      try {
+        const savedLock = localStorage.getItem('starter_lock_' + userId)
+        if (savedLock) starterLockData = JSON.parse(savedLock)
+      } catch (e) {}
+
+      const lockedUntilVal = prof?.starter_platform_locked_until ||
+        prof?.platform_locked_until ||
+        authMeta?.starter_platform_locked_until ||
+        authMeta?.platform_locked_until ||
+        starterLockData?.platformLockedUntil ||
+        null
+
+      const allowedPlatformVal = prof?.allowed_platform ||
+        authMeta?.allowed_platform ||
+        starterLockData?.allowedPlatform ||
+        (isSuperAdminEmail ? 'all' : 'mercadolivre')
+
       const mergedProfile = {
         ...(prof || {}),
         role: prof?.role || (isSuperAdminEmail ? 'superadmin' : 'user'),
         full_name: prof?.full_name || authMeta.full_name || localMeta.full_name || (isSuperAdminEmail ? 'Jonathan Neves' : currentUser.email?.split('@')[0] || 'Afiliado'),
         avatar_url: prof?.avatar_url || authMeta.avatar_url || localMeta.avatar_url || '',
         ml_affiliate_tag: sanitizedMlTag,
-        groq_api_key: sanitizedGroqKey
+        groq_api_key: sanitizedGroqKey,
+        allowed_platform: allowedPlatformVal,
+        starter_platform_locked_until: lockedUntilVal,
+        platform_locked_until: lockedUntilVal
       }
 
       setProfile(mergedProfile)
@@ -424,31 +437,6 @@ export default function App() {
     setTab('dailysales')
   }
 
-  // 8. Salvar ou remover oferta favoritada diretamente do Radar
-  const handleSaveFavoriteFromRadar = (product) => {
-    const exists = favorites.some((f) => f.url === product.url || f.title === product.title)
-    if (exists) {
-      const updated = favorites.filter((f) => f.url !== product.url && f.title !== product.title)
-      handleUpdateFavorites(updated)
-      return
-    }
-
-    const newFav = {
-      id: 'fav_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
-      title: product.title,
-      price: product.price,
-      originalPrice: product.originalPrice,
-      discount: product.discount,
-      imageUrl: product.imageUrl,
-      url: product.url,
-      platform: product.platform,
-      folderId: 'fld_achados',
-      createdAt: new Date().toISOString()
-    }
-    const updated = [newFav, ...favorites]
-    handleUpdateFavorites(updated)
-  }
-
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut()
@@ -573,7 +561,6 @@ export default function App() {
           favoritesCount={favorites.length}
           mobileMenuOpen={mobileMenuOpen}
           onCloseMobileMenu={() => setMobileMenuOpen(false)}
-          showRadar={showRadar}
         />
 
         <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
@@ -606,21 +593,6 @@ export default function App() {
                 onGoToSales={() => {
                   setPrefilledProduct(null)
                   setTab('dailysales')
-                }}
-              />
-            )}
-
-            {currentTab === 'radar' && (
-              <RadarView
-                profile={profile}
-                user={user}
-                favorites={favorites}
-                onSaveFavorite={handleSaveFavoriteFromRadar}
-                onLaunchSale={handleLaunchSaleWithProduct}
-                onHideRadar={() => {
-                  setShowRadar(false)
-                  try { localStorage.setItem('hide_radar_tab', 'true') } catch (e) {}
-                  setTab('analytics')
                 }}
               />
             )}
@@ -722,8 +694,6 @@ export default function App() {
                 user={user}
                 darkMode={darkMode}
                 setDarkMode={setDarkMode}
-                showRadar={showRadar}
-                setShowRadar={setShowRadar}
               />
             )}
 

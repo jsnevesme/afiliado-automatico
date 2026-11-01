@@ -14,6 +14,12 @@
 
   console.log('[Afiliado Automático] Content script da Amazon carregando/atualizando em:', window.location.href);
 
+  // Remove elementos visuais anteriores para garantir renderização limpa
+  const lingeringAmzBtn = document.getElementById('amz-afiliado-floating-btn');
+  if (lingeringAmzBtn) lingeringAmzBtn.remove();
+  const lingeringAmzModal = document.getElementById('amz-afiliado-modal-overlay');
+  if (lingeringAmzModal) lingeringAmzModal.remove();
+
   // Remove listener anterior se houver (para evitar duplicação ou contexto invalidado após reload)
   if (window.__AMAZON_AFILIADO_MSG_LISTENER__) {
     try {
@@ -66,12 +72,17 @@
 
   function isGarbageAmazonTitle(str) {
     if (!str || typeof str !== 'string') return true;
-    const s = str.trim().toLowerCase();
+    const s = str.trim();
     if (s.length < 3) return true;
-    const junkPatterns = [
-      'histórico de conversas',
+    // Normalização sem acentos para pegar variações (histórico, historico, conversas, rufus, chat)
+    const norm = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const junkWords = [
       'historico de conversas',
-      'histórico de navegação',
+      'historico',
+      'conversa',
+      'conversas',
+      'rufus',
+      'chat',
       'historico de navegacao',
       'carrinho de compras',
       'carrinho',
@@ -84,12 +95,12 @@
       'mais vendidos',
       'ofertas do dia',
       'amazon.com.br',
-      'selecione o endereço',
+      'selecione o endereco',
       'enviar para',
-      'olá, faça seu login',
-      'devoluções e pedidos'
+      'ola, faca seu login',
+      'devolucoes e pedidos'
     ];
-    return junkPatterns.some(p => s.includes(p));
+    return junkWords.some(p => norm.includes(p));
   }
 
   function extractCurrentPageProduct() {
@@ -98,19 +109,14 @@
       return null;
     }
 
-    // 1. Título (Prioridade absoluta para seletores oficiais de PDP da Amazon e eliminação de histórico de conversas/gavetas)
+    // 1. Título: Prioridade absoluta e exclusiva para seletores oficiais do título do produto da Amazon (#productTitle)
     let title = '';
     const titleCandidates = [
       '#productTitle',
+      'span#productTitle',
       '#title #productTitle',
       '#centerCol #productTitle',
-      '#ppd #productTitle',
-      '#titleSection h1',
-      '#title_feature_div #productTitle',
-      '#title_feature_div h1',
-      '#centerCol h1#title',
-      '#centerCol h1',
-      'h1#title'
+      '#ppd #productTitle'
     ];
 
     for (const sel of titleCandidates) {
@@ -703,6 +709,55 @@
     if (!product) {
       alert('Não foi possível identificar as informações do produto.');
       return;
+    }
+
+    // 1. Sanitização e garantia absoluta contra qualquer título inválido ("Histórico de conversas", Rufus, gavetas)
+    if (!product.title || isGarbageAmazonTitle(product.title)) {
+      const og = document.querySelector('meta[property="og:title"], meta[name="title"]')?.content || '';
+      const docT = document.title || '';
+      const fallbackClean = (og || docT).split(/:\s*Amazon/i)[0].split(' | ')[0].trim();
+      if (fallbackClean && !isGarbageAmazonTitle(fallbackClean)) {
+        product.title = fallbackClean;
+      } else {
+        const elTitle = document.querySelector('#productTitle, span#productTitle');
+        if (elTitle && elTitle.textContent && !isGarbageAmazonTitle(elTitle.textContent)) {
+          product.title = elTitle.textContent.trim().replace(/\s+/g, ' ');
+        } else {
+          product.title = (docT.replace(/:\s*Amazon.*/i, '').trim()) || 'Produto Amazon';
+        }
+      }
+    }
+
+    // 2. Validação estrita do Plano Starter (Bloqueio prévio obrigatório de 30 dias)
+    try {
+      const authStore = await chrome.storage.local.get(['sb_profile', 'starter_platform', 'starter_platform_locked_until']);
+      const prof = authStore.sb_profile || {};
+      const isStarterOrTrial = prof.role !== 'superadmin' && (prof.plan === 'starter' || prof.plan === 'free_trial' || !prof.plan);
+      const lockedUntilVal = authStore.starter_platform_locked_until || prof.starter_platform_locked_until || prof.platform_locked_until;
+      const isLocked = isStarterOrTrial && Boolean(lockedUntilVal && new Date(lockedUntilVal) > new Date());
+      const allowedPlat = (authStore.starter_platform || prof.allowed_platform || '').toLowerCase();
+
+      if (isStarterOrTrial) {
+        if (!isLocked) {
+          alert(
+            '🔒 Seleção de Plataforma Pendente (Plano Starter)\n\n' +
+            'Você precisa primeiro escolher e travar sua plataforma de disparo por 30 dias no Painel de Configurações antes de buscar ou disparar ofertas.'
+          );
+          return;
+        }
+        if (allowedPlat && allowedPlat !== 'all' && allowedPlat !== 'amazon') {
+          const names = { mercadolivre: 'Mercado Livre', shopee: 'Shopee', amazon: 'Amazon' };
+          const curName = names[allowedPlat] || allowedPlat.toUpperCase();
+          alert(
+            `🔒 Plataforma Não Autorizada (Plano Starter)\n\n` +
+            `Sua conta Starter está fixada exclusivamente para disparos no ${curName} durante este ciclo de 30 dias.\n\n` +
+            `Para disparar ofertas na Amazon, faça upgrade para o Plano Pro no seu painel!`
+          );
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao validar autorização do plano Starter na Amazon:', e);
     }
 
     let groups = [];

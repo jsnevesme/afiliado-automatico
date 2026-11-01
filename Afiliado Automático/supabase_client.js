@@ -420,6 +420,13 @@ class SupabaseClient {
       localUpdates.ml_whatsapp_groups = p.ml_whatsapp_groups;
     }
 
+    if (p.allowed_platform !== undefined) {
+      localUpdates.starter_platform = p.allowed_platform;
+    }
+    if (p.starter_platform_locked_until !== undefined || p.platform_locked_until !== undefined) {
+      localUpdates.starter_platform_locked_until = p.starter_platform_locked_until || p.platform_locked_until;
+    }
+
     // Pastas de Favoritos
     const authFolders = this.session?.user?.user_metadata?.favorite_folders;
     const cloudFolders = (p.favorite_folders && Array.isArray(p.favorite_folders) && p.favorite_folders.length > 0)
@@ -487,8 +494,12 @@ class SupabaseClient {
         if (this.profile) {
           this.profile.allowed_platform = data.allowed_platform;
           this.profile.starter_platform_locked_until = data.locked_until;
-          await new Promise((r) => chrome.storage.local.set({ sb_profile: this.profile }, r));
         }
+        await new Promise((r) => chrome.storage.local.set({
+          sb_profile: this.profile,
+          starter_platform: data.allowed_platform,
+          starter_platform_locked_until: data.locked_until
+        }, r));
       }
       return data;
     } catch (e) {
@@ -710,8 +721,9 @@ class SupabaseClient {
     let platformLockedUntil = null;
     let daysUntilPlatformUnlock = 0;
 
-    if (p.plan === 'starter' && p.starter_platform_locked_until) {
-      const lockDate = new Date(p.starter_platform_locked_until);
+    const lockDateVal = p.starter_platform_locked_until || p.platform_locked_until;
+    if ((p.plan === 'starter' || p.plan === 'free_trial' || !p.plan) && lockDateVal) {
+      const lockDate = new Date(lockDateVal);
       if (lockDate > now) {
         isPlatformLocked = true;
         platformLockedUntil = lockDate;

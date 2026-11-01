@@ -755,6 +755,38 @@
       return;
     }
 
+    // Validação estrita do Plano Starter (Bloqueio prévio obrigatório de 30 dias)
+    try {
+      const authStore = await chrome.storage.local.get(['sb_profile', 'starter_platform', 'starter_platform_locked_until']);
+      const prof = authStore.sb_profile || {};
+      const isStarterOrTrial = prof.role !== 'superadmin' && (prof.plan === 'starter' || prof.plan === 'free_trial' || !prof.plan);
+      const lockedUntilVal = authStore.starter_platform_locked_until || prof.starter_platform_locked_until || prof.platform_locked_until;
+      const isLocked = isStarterOrTrial && Boolean(lockedUntilVal && new Date(lockedUntilVal) > new Date());
+      const allowedPlat = (authStore.starter_platform || prof.allowed_platform || '').toLowerCase();
+
+      if (isStarterOrTrial) {
+        if (!isLocked) {
+          alert(
+            '🔒 Seleção de Plataforma Pendente (Plano Starter)\n\n' +
+            'Você precisa primeiro escolher e travar sua plataforma de disparo por 30 dias no Painel de Configurações antes de buscar ou disparar ofertas.'
+          );
+          return;
+        }
+        if (allowedPlat && allowedPlat !== 'all' && allowedPlat !== 'shopee') {
+          const names = { mercadolivre: 'Mercado Livre', shopee: 'Shopee', amazon: 'Amazon' };
+          const curName = names[allowedPlat] || allowedPlat.toUpperCase();
+          alert(
+            `🔒 Plataforma Não Autorizada (Plano Starter)\n\n` +
+            `Sua conta Starter está fixada exclusivamente para disparos no ${curName} durante este ciclo de 30 dias.\n\n` +
+            `Para disparar ofertas na Shopee, faça upgrade para o Plano Pro no seu painel!`
+          );
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao validar plano Starter na Shopee:', e);
+    }
+
     let groups = [];
     let affiliateTag = '';
     let pinnedGroup = '';

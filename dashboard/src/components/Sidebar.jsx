@@ -17,8 +17,7 @@ import {
   BookmarkCheck,
   Download,
   X,
-  Lock,
-  Flame
+  Lock
 } from 'lucide-react'
 import ChromeLogo from './ChromeLogo'
 
@@ -34,8 +33,7 @@ export default function Sidebar({
   onOpenProfile,
   favoritesCount = 0,
   mobileMenuOpen = false,
-  onCloseMobileMenu,
-  showRadar = true
+  onCloseMobileMenu
 }) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef(null)
@@ -57,7 +55,6 @@ export default function Sidebar({
 
   const navItems = [
     { id: 'analytics', label: 'Dashboard', icon: LayoutDashboard },
-    ...(showRadar ? [{ id: 'radar', label: 'Radar de Ofertas', icon: Flame, badge: 'HOT' }] : []),
     { id: 'favorites', label: 'Favoritos', icon: BookmarkCheck, badge: favoritesCount > 0 ? String(favoritesCount) : null },
     { id: 'dailysales', label: 'Vendas & Comissões', icon: DollarSign },
     { id: 'history', label: 'Histórico de Envios', icon: History },
