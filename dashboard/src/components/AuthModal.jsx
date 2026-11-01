@@ -147,15 +147,51 @@ export default function AuthModal({ onAuthSuccess, onClose, initialMode = 'login
           return
         }
 
-        // Garante a sessão ativa
-        let activeUser = data?.session?.user || data?.user
-        if (!activeUser || !data?.session) {
-          const { data: signInData } = await supabase.auth.signInWithPassword({
+        // Verifica se a conta já existia (Supabase GoTrue retorna identities vazias quando usuário já existe)
+        const isExistingUser = data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0
+
+        if (isExistingUser) {
+          // Tenta fazer login com a senha informada
+          const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
             email: cleanEmail,
             password
           })
-          if (signInData?.user) {
+
+          if (signInErr || !signInData?.user) {
+            setErrorMsg('Este e-mail já está cadastrado no sistema com outra senha. Alterne para a aba "Entrar na Conta" e informe sua senha cadastrada.')
+            setMode('login')
+            return
+          }
+
+          setSuccessMsg('🎉 Identificamos sua conta existente! Entrando no sistema...')
+          if (cleanUsername) {
+            try {
+              localStorage.setItem('user_meta_' + signInData.user.id, JSON.stringify({
+                full_name: cleanUsername,
+                username: cleanUsername
+              }))
+            } catch (e) {}
+          }
+          setTimeout(() => {
+            onAuthSuccess(signInData.user)
+          }, 500)
+          return
+        }
+
+        // Se for novo usuário, garante a sessão ativa
+        let activeUser = data?.session?.user
+        if (!activeUser || !data?.session) {
+          const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password
+          })
+          if (signInData?.user && signInData?.session) {
             activeUser = signInData.user
+          } else {
+            console.warn('[AuthModal] Falha ao autenticar pós-cadastro:', signInErr)
+            setErrorMsg('Conta criada com sucesso! Por favor, entre com seu e-mail e senha na aba "Entrar na Conta".')
+            setMode('login')
+            return
           }
         }
 
@@ -172,13 +208,7 @@ export default function AuthModal({ onAuthSuccess, onClose, initialMode = 'login
         setSuccessMsg('🎉 Conta criada com sucesso! 3 dias de acesso grátis liberados! Entrando...')
 
         setTimeout(() => {
-          if (activeUser) {
-            onAuthSuccess(activeUser)
-          } else {
-            setMode('login')
-            setErrorMsg(null)
-            setSuccessMsg('Conta criada com sucesso! Faça login com seu e-mail e senha.')
-          }
+          onAuthSuccess(activeUser)
         }, 600)
       } catch (err) {
         console.error('[AuthModal] Erro ao cadastrar:', err)

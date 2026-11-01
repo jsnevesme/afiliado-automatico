@@ -5441,6 +5441,10 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('✅ Login realizado com sucesso!', '👋');
       }
 
+      if (!supabase.session) {
+        throw new Error('Não foi possível iniciar sessão. Por favor, verifique suas credenciais.');
+      }
+
       hideAuthModal();
       await loadStoredData();
       renderUserPlanUI();
@@ -5451,7 +5455,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (err) {
       console.warn('Erro de autenticação:', err);
-      showAuthError(err.message || 'Erro ao processar autenticação.');
+      let msg = err.message || 'Erro ao processar autenticação.';
+      if (msg.includes('Invalid login credentials')) {
+        msg = 'E-mail ou senha incorretos. Verifique suas credenciais.';
+      }
+      showAuthError(msg);
     } finally {
       if (submitBtn) submitBtn.disabled = false;
       if (btnAuthSubmitText) btnAuthSubmitText.textContent = isRegisterMode ? 'Criar Conta e Ativar 3 Dias Grátis' : 'Entrar no Sistema';

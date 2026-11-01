@@ -1,11 +1,11 @@
 {
-  "version": "2.3.5",
-  "buildTimestamp": 1730478000000,
-  "updatedAt": "2026-11-01T16:35:00.000Z",
+  "version": "2.3.6",
+  "buildTimestamp": 1730481000000,
+  "updatedAt": "2026-11-01T17:15:00.000Z",
   "features": [
+    "Criação e autenticação de contas robusta sem dependência de confirmação manual",
+    "Garantia estrita de sessão ativa no cadastro e login com auto-recuperação",
     "Instalação 100% limpa para novos usuários sem credenciais residuais",
-    "Botão interativo e detecção em tempo real de conexão com o WhatsApp Web",
-    "Logout completo limpando tags, grupos e chaves locais",
-    "Fix permanente e persistência no bloqueio de plataforma do plano Starter"
+    "Botão interativo e detecção em tempo real de conexão com o WhatsApp Web"
   ]
 }

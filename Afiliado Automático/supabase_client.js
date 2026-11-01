@@ -167,12 +167,28 @@ class SupabaseClient {
       throw new Error(data.error_description || data.msg || data.message || 'Erro ao criar conta.');
     }
 
+    // Se o usuário já existia (identities vazias retornado pelo Supabase GoTrue)
+    if (data.identities && Array.isArray(data.identities) && data.identities.length === 0 && !data.access_token) {
+      try {
+        return await this.signIn(cleanEmail, password);
+      } catch (loginErr) {
+        throw new Error('Este e-mail já está cadastrado no sistema com outra senha. Alterne para a aba "Entrar" e informe sua senha cadastrada.');
+      }
+    }
+
     if (data.access_token) {
       await this.saveSession(data);
       await this.fetchProfile();
       await this.syncCloudToLocal();
+      return data;
     }
-    return data;
+
+    // Se a criação foi bem sucedida mas não retornou access_token direto, faz o login imediatamente
+    try {
+      return await this.signIn(cleanEmail, password);
+    } catch (loginErr) {
+      throw new Error('Conta criada com sucesso! Por favor, entre na aba "Entrar" com seu e-mail e senha.');
+    }
   }
 
   /**
