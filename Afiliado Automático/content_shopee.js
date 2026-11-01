@@ -1341,11 +1341,8 @@
     document.head.appendChild(style);
   }
 
-  if (!window.__AFILIADO_SHOPEE_INITIALIZED__) {
-    window.__AFILIADO_SHOPEE_INITIALIZED__ = true;
-    injectShopeeStyles();
-    initShopeeInPageUI();
-  }
-
+  // Inicialização (recarrega estilos e UI mesmo se reinjetado)
+  injectShopeeStyles();
+  initShopeeInPageUI();
 })();
 

@@ -18,16 +18,55 @@ const GROQ_MODELS = [
   'openai/gpt-oss-20b'
 ];
 
+async function reinjectContentScriptsInOpenTabs() {
+  try {
+    const tabs = await chrome.tabs.query({
+      url: [
+        '*://*.mercadolivre.com.br/*',
+        '*://mercadolivre.com.br/*',
+        '*://*.amazon.com.br/*',
+        '*://amazon.com.br/*',
+        '*://*.shopee.com.br/*',
+        '*://shopee.com.br/*'
+      ]
+    });
+    for (const tab of tabs) {
+      if (!tab.id || !tab.url) continue;
+      try {
+        if (tab.url.includes('mercadolivre.com.br')) {
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['commission.js', 'content_ml.js']
+          });
+        } else if (tab.url.includes('amazon.com.br')) {
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['content_amazon.js']
+          });
+        } else if (tab.url.includes('shopee.com.br')) {
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['content_shopee.js']
+          });
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+}
+
 chrome.runtime.onInstalled.addListener(async () => {
-  console.log('[Afiliado ML] Extensão instalada com sucesso.');
-  // Inicializa a chave padrão se ainda não estiver salva
+  console.log('[Afiliado ML] Extensão instalada/atualizada com sucesso.');
   const data = await chrome.storage.local.get(['groq_api_key', 'ml_affiliate_tag']);
   if (!data.groq_api_key) {
     await chrome.storage.local.set({ groq_api_key: DEFAULT_GROQ_API_KEY });
   }
-  // Limpa qualquer dado residual de cupons legados
   await chrome.storage.local.remove(['ml_active_coupons', 'ml_coupons', 'active_coupons', 'activeCouponsList']);
+  // Reinjeta automaticamente os content scripts em abas que já estavam abertas
+  setTimeout(reinjectContentScriptsInOpenTabs, 300);
 });
+
+// Reinjeta também na inicialização do service worker
+setTimeout(reinjectContentScriptsInOpenTabs, 600);
 
 // =============================================================================
 // SISTEMA DE AUTO-UPDATE & HOT-RELOAD (MODO DESENVOLVEDOR & PASTA LOCAL)

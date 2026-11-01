@@ -1635,12 +1635,8 @@
     } catch (e) {}
   }
 
-  // Inicialização
-  if (!window.__AFILIADO_AMAZON_INITIALIZED__) {
-    window.__AFILIADO_AMAZON_INITIALIZED__ = true;
-    injectAmazonStyles();
-    injectMainWorldClipboardInterceptor();
-    initAmazonInPageUI();
-  }
-
+  // Inicialização (recarrega estilos e UI mesmo se reinjetado)
+  injectAmazonStyles();
+  injectMainWorldClipboardInterceptor();
+  initAmazonInPageUI();
 })();
