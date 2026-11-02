@@ -612,11 +612,16 @@
 
   function isShopeeProductPage(url = window.location.href) {
     if (!url) return false;
-    if (url.includes('careers.') || url.includes('help.') || url.includes('/legal/') || url.includes('/buyer/')) {
+    if (url.includes('careers.') || url.includes('help.') || url.includes('/legal/') || url.includes('/buyer/') || url.includes('/cart') || url.includes('/checkout')) {
       return false;
     }
     if (isShopeeProductUrl(url)) return true;
-    if (document.querySelector('.WBVL_7, .product-briefing, div[class*="WBVL_7"], [class*="product-briefing"], .attM6q')) return true;
+    const canonical = document.querySelector('link[rel="canonical"]')?.href;
+    if (canonical && isShopeeProductUrl(canonical)) return true;
+    const ogUrl = document.querySelector('meta[property="og:url"]')?.content;
+    if (ogUrl && isShopeeProductUrl(ogUrl)) return true;
+    if (document.querySelector('.WBVL_7, .product-briefing, div[class*="WBVL_7"], [class*="product-briefing"], .attM6q, div[class*="page-product"]')) return true;
+    if (document.querySelector('button.btn-solid-primary, button[class*="btn-solid-primary"], button[aria-label*="carrinho" i], button[aria-label*="comprar" i]')) return true;
     const jsonLd = extractShopeeJsonLd();
     if (jsonLd && (jsonLd['@type'] === 'Product' || jsonLd.offers)) return true;
     return false;
@@ -626,7 +631,7 @@
     checkAndInjectShopeeUI();
     window.addEventListener('scroll', debounce(injectSearchCardButtons, 400), { passive: true });
     // Periodic check para capturar navegação client-side SPA da Shopee
-    setInterval(checkAndInjectShopeeUI, 1200);
+    setInterval(checkAndInjectShopeeUI, 1000);
   }
 
   function checkAndInjectShopeeUI() {
@@ -640,9 +645,19 @@
   }
 
   function injectFloatingButton() {
-    if (document.getElementById('shp-afiliado-floating-btn')) return;
-
     const product = extractCurrentPageProduct();
+    const existing = document.getElementById('shp-afiliado-floating-btn');
+    if (existing) {
+      if (product && product.rawPrice) {
+        const commPill = existing.querySelector('.ml-float-comm-pill');
+        if (commPill && (commPill.textContent.includes('0,00') || !commPill.textContent.includes('R$'))) {
+          const commVal = product.rawPrice * 0.14;
+          commPill.innerHTML = `💰 Ganho: <b>R$ ${commVal.toFixed(2).replace('.', ',')}</b> (14%)`;
+        }
+      }
+      return;
+    }
+
     const commVal = product && product.rawPrice ? (product.rawPrice * 0.14) : 0;
     const commFormatted = commVal > 0 ? `R$ ${commVal.toFixed(2).replace('.', ',')}` : 'R$ 0,00';
 
@@ -1048,22 +1063,33 @@
   }
 
   function getCleanShopeeUrl(url) {
-    if (!url) return '';
-    try {
-      const u = new URL(url);
-      if (u.hostname === 's.shopee.com.br') {
-        return url.split('?')[0];
+    const candidates = [
+      url,
+      window.location.href,
+      document.querySelector('link[rel="canonical"]')?.href,
+      document.querySelector('meta[property="og:url"]')?.content
+    ];
+
+    for (const cand of candidates) {
+      if (!cand) continue;
+      try {
+        const u = new URL(cand, window.location.origin);
+        if (u.hostname === 's.shopee.com.br') {
+          return cand.split('?')[0];
+        }
+        const m = u.pathname.match(/-i\.(\d+)\.(\d+)/) || u.pathname.match(/\/product\/(\d+)\/(\d+)/);
+        if (m) {
+          return `https://shopee.com.br/product/${m[1]}/${m[2]}`;
+        }
+      } catch (e) {
+        const m = String(cand).match(/-i\.(\d+)\.(\d+)/) || String(cand).match(/\/product\/(\d+)\/(\d+)/);
+        if (m) return `https://shopee.com.br/product/${m[1]}/${m[2]}`;
       }
-      const m = u.pathname.match(/-i\.(\d+)\.(\d+)/) || u.pathname.match(/\/product\/(\d+)\/(\d+)/);
-      if (m) {
-        return `https://shopee.com.br/product/${m[1]}/${m[2]}`;
-      }
-      return '';
-    } catch (e) {
-      const m = String(url).match(/-i\.(\d+)\.(\d+)/) || String(url).match(/\/product\/(\d+)\/(\d+)/);
-      if (m) return `https://shopee.com.br/product/${m[1]}/${m[2]}`;
-      return '';
     }
+    if (url && (url.includes('shopee.com.br') || url.startsWith('/'))) {
+      return url.split('?')[0].split('#')[0];
+    }
+    return '';
   }
 
   function parsePriceString(str) {
@@ -1105,7 +1131,7 @@
     style.textContent = `
       #shp-afiliado-floating-btn {
         position: fixed;
-        bottom: 85px;
+        bottom: 24px;
         right: 24px;
         z-index: 2147483647;
         background: linear-gradient(135deg, #EE4D2D 0%, #D03B1B 100%);

@@ -1354,15 +1354,40 @@
     let isFavorited = false;
 
     try {
-      const data = await chrome.storage.local.get(['ml_whatsapp_groups', 'ml_affiliate_tag', 'ml_pinned_group', 'ml_favorite_offers']);
-      groups = Array.isArray(data.ml_whatsapp_groups) ? data.ml_whatsapp_groups : [];
+      const data = await chrome.storage.local.get([
+        'ml_whatsapp_groups',
+        'all_detected_whatsapp_groups',
+        'saved_whatsapp_groups',
+        'ml_affiliate_tag',
+        'ml_pinned_group',
+        'pinned_whatsapp_group',
+        'ml_favorite_offers'
+      ]);
+      groups = (Array.isArray(data.ml_whatsapp_groups) && data.ml_whatsapp_groups.length > 0)
+        ? data.ml_whatsapp_groups
+        : (Array.isArray(data.all_detected_whatsapp_groups) && data.all_detected_whatsapp_groups.length > 0
+          ? data.all_detected_whatsapp_groups
+          : (Array.isArray(data.saved_whatsapp_groups) && data.saved_whatsapp_groups.length > 0
+            ? data.saved_whatsapp_groups
+            : []));
       affiliateTag = data.ml_affiliate_tag || '';
-      pinnedGroup = data.ml_pinned_group || '';
+      pinnedGroup = data.ml_pinned_group || data.pinned_whatsapp_group || '';
 
       const favList = Array.isArray(data.ml_favorite_offers) ? data.ml_favorite_offers : [];
       const cleanUrl = (product.url || window.location.href).split('?')[0].split('#')[0];
       isFavorited = favList.some(f => f.url && f.url.split('?')[0].split('#')[0] === cleanUrl);
     } catch (e) {}
+
+    // Fallback RPC com o background caso o storage local ainda esteja vazio
+    if (groups.length === 0) {
+      try {
+        const bgRes = await chrome.runtime.sendMessage({ action: 'get_registered_groups' });
+        if (bgRes && Array.isArray(bgRes.groups) && bgRes.groups.length > 0) {
+          groups = bgRes.groups;
+          pinnedGroup = bgRes.pinned || pinnedGroup;
+        }
+      } catch (e) {}
+    }
 
     const overlay = document.createElement('div');
     overlay.id = 'ml-afiliado-modal-overlay';

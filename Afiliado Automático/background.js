@@ -217,23 +217,53 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === 'get_registered_groups') {
-    chrome.storage.local.get([
-      'ml_whatsapp_groups',
-      'saved_whatsapp_groups',
-      'all_detected_whatsapp_groups',
-      'ml_pinned_group',
-      'pinned_whatsapp_group'
-    ]).then(stored => {
-      const groups = (Array.isArray(stored.ml_whatsapp_groups) && stored.ml_whatsapp_groups.length > 0)
-        ? stored.ml_whatsapp_groups
-        : (Array.isArray(stored.all_detected_whatsapp_groups) && stored.all_detected_whatsapp_groups.length > 0
-          ? stored.all_detected_whatsapp_groups
-          : (Array.isArray(stored.saved_whatsapp_groups) && stored.saved_whatsapp_groups.length > 0
-            ? stored.saved_whatsapp_groups
-            : []));
-      const pinned = stored.ml_pinned_group || stored.pinned_whatsapp_group || '';
-      sendResponse({ success: true, groups, pinned });
-    }).catch(err => sendResponse({ success: false, groups: [], error: err.message }));
+    (async () => {
+      try {
+        let stored = await chrome.storage.local.get([
+          'ml_whatsapp_groups',
+          'saved_whatsapp_groups',
+          'all_detected_whatsapp_groups',
+          'ml_pinned_group',
+          'pinned_whatsapp_group'
+        ]);
+
+        let groups = (Array.isArray(stored.ml_whatsapp_groups) && stored.ml_whatsapp_groups.length > 0)
+          ? stored.ml_whatsapp_groups
+          : [];
+
+        // Se ainda não tiver grupos no storage local, sincroniza imediatamente da nuvem Supabase
+        if (groups.length === 0 && typeof supabase !== 'undefined') {
+          try {
+            await supabase.initSession();
+            if (supabase.session) {
+              const prof = await supabase.fetchProfile();
+              if (prof && Array.isArray(prof.ml_whatsapp_groups) && prof.ml_whatsapp_groups.length > 0) {
+                const isSuperAdmin = (prof.role === 'superadmin') || (prof.email?.toLowerCase() === 'jsnevesme@gmail.com');
+                groups = !isSuperAdmin
+                  ? prof.ml_whatsapp_groups.filter(g => (g?.name || g?.title || g) !== 'Tiktok Shop' && (g?.id || '') !== 'tiktok_shop')
+                  : prof.ml_whatsapp_groups;
+                await chrome.storage.local.set({ ml_whatsapp_groups: groups });
+              }
+            }
+          } catch (cloudErr) {
+            console.warn('[Background] Falha ao sincronizar grupos da nuvem:', cloudErr);
+          }
+        }
+
+        if (groups.length === 0) {
+          groups = (Array.isArray(stored.all_detected_whatsapp_groups) && stored.all_detected_whatsapp_groups.length > 0)
+            ? stored.all_detected_whatsapp_groups
+            : (Array.isArray(stored.saved_whatsapp_groups) && stored.saved_whatsapp_groups.length > 0
+              ? stored.saved_whatsapp_groups
+              : []);
+        }
+
+        const pinned = stored.ml_pinned_group || stored.pinned_whatsapp_group || '';
+        sendResponse({ success: true, groups, pinned });
+      } catch (err) {
+        sendResponse({ success: false, groups: [], error: err.message });
+      }
+    })();
     return true;
   }
 
@@ -2904,10 +2934,10 @@ async function handleSendOffer({ productData, affiliateLink, affiliateTag, group
     detectedPlatform = 'shopee';
   }
 
-  // Validação em tempo real do plano e limite diário na nuvem Supabase
+  // Validação em tempo real do plano e limite diário na nuvem Supabase SEM gastar disparo antes do envio
   if (typeof supabase !== 'undefined') {
     await supabase.initSession();
-    const checkResult = await supabase.checkAndIncrementDispatch(detectedPlatform);
+    const checkResult = await supabase.checkDispatchAllowed(detectedPlatform);
     if (!checkResult.success) {
       throw new Error(checkResult.message || 'Disparo bloqueado: limite diário atingido ou plano expirado.');
     }
@@ -3003,8 +3033,13 @@ async function handleSendOffer({ productData, affiliateLink, affiliateTag, group
 
   const dispatchResult = await sendMessageToTabWithRetry(targetTab.id, payload);
 
-  // Registra no histórico do Dashboard em tempo real
+  // Incrementa a cota diária e registra no histórico do Dashboard SOMENTE após confirmação de entrega pelo WhatsApp Web
   if (typeof supabase !== 'undefined' && dispatchResult && dispatchResult.success !== false) {
+    try {
+      await supabase.incrementDailyDispatch(detectedPlatform);
+    } catch (incErr) {
+      console.warn('[Dispatch] Falha ao incrementar disparo confirmado:', incErr);
+    }
     let metaSuffix = '';
     try {
       const commRate = productData?.commissionRate || productData?.commission_rate || productData?.extractedCommissionRate;

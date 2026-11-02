@@ -608,6 +608,18 @@
         </div>
 
         <form id="authForm" class="auth-form">
+          <div id="authRegisterFields" class="hidden">
+            <div class="auth-input-group">
+              <label for="authFullNameInput">Nome Completo</label>
+              <input type="text" id="authFullNameInput" placeholder="ex: João da Silva" autocomplete="name">
+            </div>
+            <div class="auth-input-group">
+              <label for="authUsernameInput">Nome de Usuário</label>
+              <input type="text" id="authUsernameInput" placeholder="ex: João Silva ou joaosilva" autocomplete="username">
+              <span style="font-size: 10px; color: #94A3B8; margin-top: 2px; display: block;">Pode conter letras com acento, números e espaços.</span>
+            </div>
+          </div>
+
           <div class="auth-input-group">
             <label for="authEmailInput">E-mail</label>
             <input type="email" id="authEmailInput" placeholder="seu@email.com" required autocomplete="email">

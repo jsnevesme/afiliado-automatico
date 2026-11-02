@@ -36,6 +36,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const tabAuthRegister = document.getElementById('tabAuthRegister');
   const authSubtitle = document.getElementById('authSubtitle');
   const authForm = document.getElementById('authForm');
+  const authRegisterFields = document.getElementById('authRegisterFields');
+  const authFullNameInput = document.getElementById('authFullNameInput');
+  const authUsernameInput = document.getElementById('authUsernameInput');
   const authEmailInput = document.getElementById('authEmailInput');
   const authPasswordInput = document.getElementById('authPasswordInput');
   const togglePasswordVisibilityBtn = document.getElementById('togglePasswordVisibilityBtn');
@@ -437,11 +440,14 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (_) {}
       }
 
+      const isSuperAdmin = typeof supabase !== 'undefined' && supabase.session?.user?.email?.toLowerCase() === 'jsnevesme@gmail.com';
+      const isAdminGroqKey = (k) => Boolean(k && typeof k === 'string' && k.startsWith('gsk_TjQC'));
+
       // Se houver perfil Supabase carregado, hidrata com as configurações da nuvem
       if (typeof supabase !== 'undefined' && supabase.profile) {
         const p = supabase.profile;
         if (p.ml_affiliate_tag) {
-          affiliateTag = p.ml_affiliate_tag;
+          affiliateTag = (!isSuperAdmin && p.ml_affiliate_tag === 'jonathansneves') ? '' : p.ml_affiliate_tag;
           await chrome.storage.local.set({ ml_affiliate_tag: affiliateTag });
         }
         if (p.amazon_affiliate_tag) {
@@ -453,7 +459,7 @@ document.addEventListener('DOMContentLoaded', () => {
           await chrome.storage.local.set({ shopee_affiliate_tag: shopeeAffiliateTag });
         }
         if (p.groq_api_key) {
-          groqApiKey = p.groq_api_key;
+          groqApiKey = (!isSuperAdmin && isAdminGroqKey(p.groq_api_key)) ? '' : p.groq_api_key;
           await chrome.storage.local.set({ groq_api_key: groqApiKey });
         }
         if (p.ml_copy_style) {
@@ -465,7 +471,10 @@ document.addEventListener('DOMContentLoaded', () => {
           await chrome.storage.local.set({ ml_pinned_group: pinnedGroup });
         }
         if (p.ml_whatsapp_groups && Array.isArray(p.ml_whatsapp_groups) && p.ml_whatsapp_groups.length > 0) {
-          await chrome.storage.local.set({ ml_whatsapp_groups: p.ml_whatsapp_groups });
+          const cleanGroups = !isSuperAdmin
+            ? p.ml_whatsapp_groups.filter(g => (g?.name || g?.title || g) !== 'Tiktok Shop' && (g?.id || '') !== 'tiktok_shop')
+            : p.ml_whatsapp_groups;
+          await chrome.storage.local.set({ ml_whatsapp_groups: cleanGroups });
         }
       }
 
@@ -490,6 +499,10 @@ document.addEventListener('DOMContentLoaded', () => {
       ]);
 
       affiliateTag = (data.ml_affiliate_tag || '').trim();
+      if (!isSuperAdmin && affiliateTag === 'jonathansneves') {
+        affiliateTag = '';
+        chrome.storage.local.set({ ml_affiliate_tag: '' });
+      }
       affiliateTagInput.value = affiliateTag;
 
       // Inicializa modo anti-bloqueio configurado
@@ -509,6 +522,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (shopeeTagInput) shopeeTagInput.value = shopeeAffiliateTag;
 
       groqApiKey = (data.groq_api_key || '').trim();
+      if (!isSuperAdmin && isAdminGroqKey(groqApiKey)) {
+        groqApiKey = '';
+        chrome.storage.local.set({ groq_api_key: '' });
+      }
       groqApiKeyInput.value = groqApiKey;
 
       currentCopyStyle = data.ml_copy_style || 'vantagens_gatilhos';
@@ -613,7 +630,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnOpenDashboard = document.getElementById('btnOpenDashboard');
     if (btnOpenDashboard) {
       btnOpenDashboard.addEventListener('click', () => {
-        chrome.tabs.create({ url: 'http://localhost:5173' });
+        chrome.tabs.create({ url: 'https://afiliado-automatico.vercel.app' });
       });
     }
     const subbarAccountPill = document.getElementById('subbarAccountPill');
@@ -1162,15 +1179,34 @@ document.addEventListener('DOMContentLoaded', () => {
           <p style="color: #B45309; font-size: 11px; line-height: 1.4; margin-bottom: 14px;">
             No <strong>Plano Starter</strong>, você precisa primeiro <strong>escolher e travar sua plataforma de disparo por 30 dias</strong> no Painel de Configurações antes de buscar ou disparar ofertas.
           </p>
-          <button id="btnOpenConfigToLock" type="button" style="background: #D97706; color: white; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
-            ⚙️ Escolher & Travar no Painel
-          </button>
+          <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+            <button id="btnOpenConfigToLock" type="button" style="background: #D97706; color: white; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+              ⚙️ Escolher & Travar Aqui
+            </button>
+            <button id="btnOpenWebDashboardToLock" type="button" style="background: #4B5563; color: white; border: none; padding: 10px 14px; border-radius: 12px; font-weight: 700; font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+              🌐 Abrir no Painel Web
+            </button>
+          </div>
         </div>
       `;
       const btn = document.getElementById('btnOpenConfigToLock');
       if (btn) {
         btn.addEventListener('click', () => {
-          chrome.tabs.create({ url: 'http://localhost:5173#dashboard' });
+          if (configAccordion) {
+            configAccordion.classList.remove('collapsed');
+            if (toggleConfigBtn) toggleConfigBtn.classList.add('active');
+            const starterSection = document.getElementById('starterPlatformSection');
+            if (starterSection) {
+              starterSection.scrollIntoView({ behavior: 'smooth' });
+            }
+          }
+          showToast('Abra a seção "Plano Starter" abaixo para escolher e bloquear sua plataforma por 30 dias.', '🔒');
+        });
+      }
+      const webBtn = document.getElementById('btnOpenWebDashboardToLock');
+      if (webBtn) {
+        webBtn.addEventListener('click', () => {
+          chrome.tabs.create({ url: 'https://afiliado-automatico.vercel.app' });
         });
       }
     }
@@ -3972,13 +4008,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Validação estrita: Usuário Starter ou Trial precisa travar a plataforma antes de buscar
+    let planStatus = null;
     if (typeof supabase !== 'undefined') {
-      const planStatus = supabase.getPlanStatus();
+      planStatus = supabase.getPlanStatus();
       const isStarterOrTrial = !planStatus.isSuperAdmin && (planStatus.plan === 'starter' || planStatus.plan === 'free_trial' || !planStatus.plan);
-      if (isStarterOrTrial && !planStatus.isPlatformLocked) {
-        renderStarterLockRequiredNotice();
-        showToast('Você precisa primeiro escolher e travar sua plataforma por 30 dias antes de buscar ofertas!', '🔒');
-        return;
+      if (isStarterOrTrial) {
+        if (!planStatus.isPlatformLocked) {
+          renderStarterLockRequiredNotice();
+          showToast('Você precisa primeiro escolher e travar sua plataforma por 30 dias antes de buscar ofertas!', '🔒');
+          return;
+        }
+        if (query.includes('amazon') && planStatus.allowedPlatform && planStatus.allowedPlatform !== 'all' && planStatus.allowedPlatform !== 'amazon') {
+          renderStarterDifferentStoreNotice(planStatus.allowedPlatform, 'amazon');
+          return;
+        }
+        if (query.includes('shopee') && planStatus.allowedPlatform && planStatus.allowedPlatform !== 'all' && planStatus.allowedPlatform !== 'shopee') {
+          renderStarterDifferentStoreNotice(planStatus.allowedPlatform, 'shopee');
+          return;
+        }
+        if (query.includes('mercadolivre') && planStatus.allowedPlatform && planStatus.allowedPlatform !== 'all' && planStatus.allowedPlatform !== 'mercadolivre') {
+          renderStarterDifferentStoreNotice(planStatus.allowedPlatform, 'mercadolivre');
+          return;
+        }
       }
     }
 
@@ -4221,12 +4272,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         showToast(`🚀 Oferta disparada para ${successCount} grupo(s) com sucesso!`, '✅');
 
-        // Atualiza contador de disparos na UI
-        if (typeof supabase !== 'undefined' && supabase.profile) {
-          if (supabase.profile.daily_dispatches_count !== undefined) {
-            supabase.profile.daily_dispatches_count += successCount;
-            renderUserPlanUI();
-          }
+        // Atualiza contador de disparos na UI buscando da nuvem onde foi confirmado o envio
+        if (typeof supabase !== 'undefined') {
+          try {
+            await supabase.fetchProfile();
+          } catch (_) {}
+          renderUserPlanUI();
         }
 
         setTimeout(() => {
@@ -5236,6 +5287,10 @@ document.addEventListener('DOMContentLoaded', () => {
       authErrorMessage.textContent = '';
     }
     
+    if (authRegisterFields) {
+      authRegisterFields.classList.toggle('hidden', !registerMode);
+    }
+
     if (registerMode) {
       if (tabAuthRegister) tabAuthRegister.classList.add('active');
       if (tabAuthLogin) tabAuthLogin.classList.remove('active');
@@ -5319,7 +5374,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (status.isSuperAdmin) {
         userPlanExpiryDisplay.textContent = 'Acesso Vitalício';
       } else if (status.daysRemaining !== undefined && status.plan === 'free_trial') {
-        userPlanExpiryDisplay.textContent = status.isLocked ? 'Teste expirado' : `${status.daysRemaining} dias restantes`;
+        userPlanExpiryDisplay.textContent = status.isLocked ? 'Teste expirado' : `${Math.min(3, status.daysRemaining)} dias restantes`;
       } else if (supabase.profile?.plan_expires_at) {
         const d = new Date(supabase.profile.plan_expires_at);
         userPlanExpiryDisplay.textContent = `Válido até: ${d.toLocaleDateString('pt-BR')}`;
@@ -5328,9 +5383,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // 4. Seletor de plataforma para Starter com Bloqueio de 1 Mês (Exclusivo Starter e NUNCA Superadmin)
+    // 4. Seletor de plataforma para Starter/Trial com Bloqueio de 1 Mês (NUNCA Superadmin)
     if (starterPlatformSection) {
-      if (status.plan === 'starter' && !status.isSuperAdmin) {
+      if ((status.plan === 'starter' || status.plan === 'free_trial' || !status.plan) && !status.isSuperAdmin) {
         starterPlatformSection.classList.remove('hidden');
         starterPlatformSection.style.display = 'block';
 
@@ -5434,7 +5489,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       if (isRegisterMode) {
-        await supabase.signUp(email, password);
+        const fullName = authFullNameInput ? authFullNameInput.value.trim() : '';
+        const username = authUsernameInput ? authUsernameInput.value.trim() : '';
+        await supabase.signUp(email, password, {
+          data: {
+            full_name: fullName,
+            username: username,
+            name: fullName
+          }
+        });
         showToast('🎉 Conta criada com sucesso! 3 dias de acesso grátis liberados!', '🎁');
       } else {
         await supabase.signIn(email, password);

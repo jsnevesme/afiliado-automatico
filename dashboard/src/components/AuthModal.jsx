@@ -19,6 +19,7 @@ export default function AuthModal({ onAuthSuccess, onClose, initialMode = 'login
   const [mode, setMode] = useState(initialMode === 'register' ? 'register' : 'login') // 'login' | 'register'
   
   // Campos de Formulário
+  const [fullName, setFullName] = useState('')
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -63,7 +64,8 @@ export default function AuthModal({ onAuthSuccess, onClose, initialMode = 'login
     setSuccessMsg(null)
 
     const cleanEmail = email.trim().toLowerCase()
-    const cleanUsername = username.trim().replace(/^@/, '')
+    const cleanFullName = fullName.trim()
+    const cleanUsername = username.trim()
 
     // FLUXO: LOGIN
     if (mode === 'login') {
@@ -97,13 +99,18 @@ export default function AuthModal({ onAuthSuccess, onClose, initialMode = 'login
 
     // FLUXO: CADASTRO COM CRIAÇÃO DIRETA E ATIVAÇÃO DE 3 DIAS GRÁTIS
     if (mode === 'register') {
-      if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
-        setErrorMsg('Informe um endereço de e-mail válido.')
+      if (!cleanFullName || cleanFullName.length < 3) {
+        setErrorMsg('Informe seu nome completo (mínimo de 3 caracteres).')
         return
       }
 
-      if (!cleanUsername || cleanUsername.length < 3) {
-        setErrorMsg('Escolha um nome de usuário com pelo menos 3 caracteres.')
+      if (!cleanUsername || cleanUsername.length < 2) {
+        setErrorMsg('Escolha um nome de usuário com pelo menos 2 caracteres.')
+        return
+      }
+
+      if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+        setErrorMsg('Informe um endereço de e-mail válido.')
         return
       }
 
@@ -132,8 +139,9 @@ export default function AuthModal({ onAuthSuccess, onClose, initialMode = 'login
           password,
           options: {
             data: {
+              full_name: cleanFullName,
               username: cleanUsername,
-              full_name: cleanUsername
+              name: cleanFullName
             }
           }
         })
@@ -167,7 +175,7 @@ export default function AuthModal({ onAuthSuccess, onClose, initialMode = 'login
           if (cleanUsername) {
             try {
               localStorage.setItem('user_meta_' + signInData.user.id, JSON.stringify({
-                full_name: cleanUsername,
+                full_name: cleanFullName || cleanUsername,
                 username: cleanUsername
               }))
             } catch (e) {}
@@ -199,7 +207,7 @@ export default function AuthModal({ onAuthSuccess, onClose, initialMode = 'login
         if (activeUser?.id) {
           try {
             localStorage.setItem('user_meta_' + activeUser.id, JSON.stringify({
-              full_name: cleanUsername,
+              full_name: cleanFullName || cleanUsername,
               username: cleanUsername
             }))
           } catch (e) {}
@@ -304,6 +312,51 @@ export default function AuthModal({ onAuthSuccess, onClose, initialMode = 'login
 
         {/* Formulário de Login ou Cadastro */}
         <form onSubmit={handleSubmit} className="space-y-3.5">
+          {/* Campos de Nome Completo e Nome de Usuário (Apenas no Cadastro) */}
+          {mode === 'register' && (
+            <>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Nome Completo
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    required
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="ex: João da Silva"
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 pl-10 pr-4 py-2.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">
+                  Seu nome para identificação no sistema.
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Nome de Usuário
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    required
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="ex: João Silva ou joaosilva"
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 pl-10 pr-4 py-2.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">
+                  Pode conter letras com acento, espaços e números.
+                </span>
+              </div>
+            </>
+          )}
+
           {/* Campo E-mail */}
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -321,29 +374,6 @@ export default function AuthModal({ onAuthSuccess, onClose, initialMode = 'login
               />
             </div>
           </div>
-
-          {/* Campo Nome de Usuário (Apenas no Cadastro) */}
-          {mode === 'register' && (
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Nome de Usuário
-              </label>
-              <div className="relative">
-                <User className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  required
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, ''))}
-                  placeholder="ex: joaosilva"
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 pl-10 pr-4 py-2.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">
-                Identificador único na plataforma (letras, números e ponto).
-              </span>
-            </div>
-          )}
 
           {/* Campo Senha */}
           <div>

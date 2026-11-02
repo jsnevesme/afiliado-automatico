@@ -211,7 +211,16 @@ export default function App() {
       const sanitizedMlTag = isSuperAdminEmail
         ? (prof?.ml_affiliate_tag || 'jonathansneves')
         : (prof?.ml_affiliate_tag === 'jonathansneves' ? '' : (prof?.ml_affiliate_tag || ''))
-      const sanitizedGroqKey = isSuperAdminEmail ? (prof?.groq_api_key || '') : (prof?.groq_api_key || '')
+      
+      const adminGroqKeyPrefix = 'gsk_TjQC'
+      const sanitizedGroqKey = isSuperAdminEmail
+        ? (prof?.groq_api_key || '')
+        : ((prof?.groq_api_key && prof.groq_api_key.startsWith(adminGroqKeyPrefix)) ? '' : (prof?.groq_api_key || ''))
+
+      const adminGroups = ['Tiktok Shop', 'TikTok Shop']
+      const sanitizedGroups = isSuperAdminEmail
+        ? (prof?.ml_whatsapp_groups || [])
+        : (prof?.ml_whatsapp_groups || []).filter(g => !adminGroups.includes(g))
 
       let starterLockData = null
       try {
@@ -238,6 +247,7 @@ export default function App() {
         avatar_url: prof?.avatar_url || authMeta.avatar_url || localMeta.avatar_url || '',
         ml_affiliate_tag: sanitizedMlTag,
         groq_api_key: sanitizedGroqKey,
+        ml_whatsapp_groups: sanitizedGroups,
         allowed_platform: allowedPlatformVal,
         starter_platform_locked_until: lockedUntilVal,
         platform_locked_until: lockedUntilVal

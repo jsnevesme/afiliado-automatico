@@ -107,7 +107,20 @@ class SupabaseClient {
     this.session = null;
     this.profile = null;
     return new Promise((resolve) => {
-      chrome.storage.local.remove(['sb_session', 'sb_profile'], resolve);
+      chrome.storage.local.remove([
+        'sb_session',
+        'sb_profile',
+        'ml_affiliate_tag',
+        'amazon_affiliate_tag',
+        'shopee_affiliate_tag',
+        'groq_api_key',
+        'ml_whatsapp_groups',
+        'all_detected_whatsapp_groups',
+        'ml_selected_dispatch_groups',
+        'ml_pinned_group',
+        'starter_platform',
+        'starter_platform_locked_until'
+      ], resolve);
     });
   }
 
@@ -152,14 +165,18 @@ class SupabaseClient {
   }
 
   /**
-   * Registro de nova conta
+   * Registro de nova conta com metadados (full_name, username)
    */
-  async signUp(email, password) {
+  async signUp(email, password, options = {}) {
     const cleanEmail = (email || '').trim().toLowerCase();
+    const payload = { email: cleanEmail, password };
+    if (options && options.data) {
+      payload.data = options.data;
+    }
     const res = await fetch(`${this.url}/auth/v1/signup`, {
       method: 'POST',
       headers: this.getHeaders(),
-      body: JSON.stringify({ email: cleanEmail, password })
+      body: JSON.stringify(payload)
     });
 
     const data = await res.json();
@@ -416,12 +433,19 @@ class SupabaseClient {
   async syncCloudToLocal() {
     if (!this.profile) return;
     const p = this.profile;
+    const userEmail = (p.email || this.session?.user?.email || '').toLowerCase();
+    const isSuperAdmin = (p.role === 'superadmin') || (userEmail === 'jsnevesme@gmail.com');
+    const isAdminGroqKey = (k) => Boolean(k && typeof k === 'string' && k.startsWith('gsk_TjQC'));
 
     const localUpdates = {};
-    if (p.ml_affiliate_tag !== undefined) localUpdates.ml_affiliate_tag = p.ml_affiliate_tag;
+    if (p.ml_affiliate_tag !== undefined) {
+      localUpdates.ml_affiliate_tag = (!isSuperAdmin && p.ml_affiliate_tag === 'jonathansneves') ? '' : p.ml_affiliate_tag;
+    }
     if (p.amazon_affiliate_tag !== undefined) localUpdates.amazon_affiliate_tag = p.amazon_affiliate_tag;
     if (p.shopee_affiliate_tag !== undefined) localUpdates.shopee_affiliate_tag = p.shopee_affiliate_tag;
-    if (p.groq_api_key !== undefined) localUpdates.groq_api_key = p.groq_api_key;
+    if (p.groq_api_key !== undefined) {
+      localUpdates.groq_api_key = (!isSuperAdmin && isAdminGroqKey(p.groq_api_key)) ? '' : p.groq_api_key;
+    }
     if (p.ml_copy_style !== undefined) localUpdates.ml_copy_style = p.ml_copy_style;
     const authCopy = this.session?.user?.user_metadata?.ml_custom_copy;
     if (authCopy) {
@@ -433,7 +457,9 @@ class SupabaseClient {
     }
     if (p.ml_pinned_group !== undefined) localUpdates.ml_pinned_group = p.ml_pinned_group;
     if (p.ml_whatsapp_groups && Array.isArray(p.ml_whatsapp_groups)) {
-      localUpdates.ml_whatsapp_groups = p.ml_whatsapp_groups;
+      localUpdates.ml_whatsapp_groups = !isSuperAdmin
+        ? p.ml_whatsapp_groups.filter(g => (g?.name || g?.title || g) !== 'Tiktok Shop' && (g?.id || '') !== 'tiktok_shop')
+        : p.ml_whatsapp_groups;
     }
 
     if (p.allowed_platform !== undefined) {
@@ -520,6 +546,67 @@ class SupabaseClient {
       return data;
     } catch (e) {
       return { success: false, error: 'network_error', message: 'Falha de conexão com o servidor.' };
+    }
+  }
+
+  /**
+   * Valida APENAS autorização de disparo SEM incrementar contador antes do WhatsApp enviar
+   */
+  async checkDispatchAllowed(platform = 'mercadolivre') {
+    if (!this.session || !this.session.access_token) {
+      return {
+        success: false,
+        error: 'unauthenticated',
+        message: 'Você precisa estar logado na sua conta para disparar ofertas.'
+      };
+    }
+
+    try {
+      const res = await fetch(`${this.url}/rest/v1/rpc/check_dispatch_allowed`, {
+        method: 'POST',
+        headers: this.getHeaders(this.session.access_token),
+        body: JSON.stringify({ p_platform: platform.toLowerCase() })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        return {
+          success: false,
+          error: data.code || 'rpc_error',
+          message: data.message || 'Erro ao validar autorização de disparo.'
+        };
+      }
+      return data;
+    } catch (err) {
+      return {
+        success: false,
+        error: 'network_error',
+        message: 'Falha de conexão com o servidor. Verifique sua internet.'
+      };
+    }
+  }
+
+  /**
+   * Efetivamente incrementa o contador diário SOMENTE após confirmação de entrega no WhatsApp
+   */
+  async incrementDailyDispatch(platform = 'mercadolivre') {
+    if (!this.session || !this.session.access_token) return;
+    try {
+      const res = await fetch(`${this.url}/rest/v1/rpc/increment_dispatch`, {
+        method: 'POST',
+        headers: this.getHeaders(this.session.access_token),
+        body: JSON.stringify({ p_platform: platform.toLowerCase() })
+      });
+      const data = await res.json();
+      if (res.ok && data?.dispatchesToday !== undefined) {
+        if (this.profile) {
+          this.profile.daily_dispatches_count = data.dispatchesToday;
+          chrome.storage.local.set({ sb_profile: this.profile });
+        }
+      }
+      return data;
+    } catch (e) {
+      console.warn('[Supabase] Falha ao incrementar disparo confirmado:', e);
     }
   }
 
@@ -679,7 +766,7 @@ class SupabaseClient {
     if (p.plan === 'free_trial') {
       const trialEnds = p.trial_ends_at ? new Date(p.trial_ends_at) : new Date(0);
       const diffMs = trialEnds.getTime() - now.getTime();
-      daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+      daysRemaining = Math.min(3, Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24))));
 
       if (diffMs <= 0 || p.plan_status === 'expired') {
         isLocked = true;
@@ -738,14 +825,21 @@ class SupabaseClient {
     let daysUntilPlatformUnlock = 0;
 
     const lockDateVal = p.starter_platform_locked_until || p.platform_locked_until;
-    if ((p.plan === 'starter' || p.plan === 'free_trial' || !p.plan) && lockDateVal) {
+    const isStarterOrTrial = !isSuperAdmin && (p.plan === 'starter' || p.plan === 'free_trial' || !p.plan);
+    const hasPlatformChosen = Boolean(p.allowed_platform && p.allowed_platform !== '' && p.allowed_platform !== 'none' && p.allowed_platform !== 'all');
+
+    if (isStarterOrTrial && lockDateVal) {
       const lockDate = new Date(lockDateVal);
-      if (lockDate > now) {
+      if (lockDate > now && hasPlatformChosen) {
         isPlatformLocked = true;
         platformLockedUntil = lockDate;
         daysUntilPlatformUnlock = Math.max(1, Math.ceil((lockDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
       }
     }
+
+    const resolvedAllowedPlatform = isSuperAdmin
+      ? 'all'
+      : (p.allowed_platform || (p.plan === 'starter' ? 'mercadolivre' : ''));
 
     return {
       isAuthenticated: true,
@@ -758,7 +852,7 @@ class SupabaseClient {
       badgeClass,
       isLocked,
       daysRemaining,
-      allowedPlatform: p.allowed_platform || (p.plan === 'starter' ? 'mercadolivre' : 'all'),
+      allowedPlatform: resolvedAllowedPlatform,
       isPlatformLocked,
       platformLockedUntil,
       daysUntilPlatformUnlock,
